@@ -344,3 +344,93 @@ export function generateDoctorReportText(
 
   return lines.join('\n');
 }
+
+function escapeCsvCell(value: string | number | undefined | null): string {
+  const raw = value == null ? '' : String(value);
+  // Neutralize spreadsheet formula injection if cell begins with =, +, -, @, tab, or CR
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  if (/[",\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
+}
+
+export function generateAdherenceCsv(
+  medications: Medication[],
+  logs: Record<string, DoseLogEntry>,
+  days: number,
+  now: Date
+): string {
+  const todayKey = toDateKey(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const headers = [
+    'Date',
+    'Scheduled Time',
+    'Medication',
+    'Dosage',
+    'Amount',
+    'Purpose',
+    'Status',
+    'Taken At',
+    'Notes',
+  ];
+
+  const rows: string[][] = [headers];
+
+  // Iterate most recent date first so healthcare providers see latest adherence at the top
+  for (let offset = 0; offset < days; offset++) {
+    const dateKey = shiftDateKey(now, -offset);
+    const isToday = dateKey === todayKey;
+    const doses = buildScheduledDosesForDate(dateKey, medications, logs, now);
+
+    for (const dose of doses) {
+      const schedMins = minutesFromTime(dose.scheduledTime);
+      let statusLabel: string;
+      let takenAtLabel = '';
+      let notes = '';
+
+      if (dose.status === 'taken') {
+        takenAtLabel = formatTimestamp12h(dose.log?.takenAt);
+        if (dose.log?.takenAt) {
+          const takenDate = new Date(dose.log.takenAt);
+          const takenMins = takenDate.getHours() * 60 + takenDate.getMinutes();
+          statusLabel =
+            Math.abs(takenMins - schedMins) <= 45
+              ? 'Taken (On Time)'
+              : 'Taken (Late)';
+        } else {
+          statusLabel = 'Taken';
+        }
+      } else if (dose.status === 'skipped') {
+        statusLabel = 'Skipped';
+        notes = dose.log?.skipReason || 'Skipped';
+      } else if (dose.status === 'snoozed') {
+        statusLabel = 'Snoozed';
+        notes = dose.log?.snoozedUntil
+          ? `Snoozed until ${formatTimestamp12h(dose.log.snoozedUntil)}`
+          : '';
+      } else if (isToday && schedMins > nowMinutes) {
+        statusLabel = 'Upcoming';
+      } else {
+        statusLabel = 'Missed';
+      }
+
+      rows.push([
+        dateKey,
+        formatTime12h(dose.scheduledTime),
+        dose.medication.name,
+        dose.medication.dosage,
+        dose.medication.quantityLabel,
+        dose.medication.purpose,
+        statusLabel,
+        takenAtLabel,
+        notes,
+      ]);
+    }
+  }
+
+  // Include UTF-8 BOM so Excel opens special characters cleanly
+  return `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')}`;
+}
+

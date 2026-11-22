@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Check, ClipboardCheck, Copy, Printer, RotateCcw } from 'lucide-react';
+import {
+  Check,
+  ClipboardCheck,
+  Copy,
+  Download,
+  Printer,
+  RotateCcw,
+} from 'lucide-react';
 import { DoseLogEntry, Medication, ScheduledDose } from '../types/medication';
 import {
   buildScheduledDosesForDate,
@@ -7,6 +14,7 @@ import {
   formatHumanDate,
   formatTime12h,
   formatTimestamp12h,
+  generateAdherenceCsv,
   generateDoctorReportText,
   parseDateKey,
   toDateKey,
@@ -34,6 +42,7 @@ export function AdherenceView({
     toDateKey(now)
   );
   const [copiedReport, setCopiedReport] = useState(false);
+  const [downloadedCsv, setDownloadedCsv] = useState(false);
 
   const todayKey = toDateKey(now);
 
@@ -69,6 +78,25 @@ export function AdherenceView({
       setCopiedReport(true);
       window.setTimeout(() => setCopiedReport(false), 3000);
     }
+  };
+
+  const handleDownloadCsv = () => {
+    const csvContent = generateAdherenceCsv(medications, logs, rangeDays, now);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `steadydose-adherence-${rangeDays}days-${todayKey}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setDownloadedCsv(true);
+    window.setTimeout(() => setDownloadedCsv(false), 3000);
   };
 
   return (
@@ -405,25 +433,44 @@ export function AdherenceView({
               Share with Doctor or Family
             </h2>
             <p className="text-sm text-[#475569] leading-relaxed">
-              Copy a plain-text medication adherence summary to send in a
-              message, or print a clean copy for your next appointment.
+              Export your {rangeDays}-day adherence log as a CSV spreadsheet for
+              your healthcare provider, copy a text summary, or print a clean
+              report.
             </p>
           </div>
 
           <div className="space-y-2.5">
             <button
               type="button"
-              onClick={handleCopyReport}
+              onClick={handleDownloadCsv}
               className="w-full min-h-[50px] px-4 rounded-xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              {downloadedCsv ? (
+                <>
+                  <Check className="w-5 h-5 shrink-0" />
+                  <span>CSV Downloaded</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5 shrink-0" />
+                  <span>Download CSV ({rangeDays} Days)</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopyReport}
+              className="w-full min-h-[50px] px-4 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
             >
               {copiedReport ? (
                 <>
-                  <ClipboardCheck className="w-5 h-5 shrink-0" />
+                  <ClipboardCheck className="w-5 h-5 shrink-0 text-[#0E6B5E]" />
                   <span>Summary Copied</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-5 h-5 shrink-0" />
+                  <Copy className="w-5 h-5 shrink-0 text-[#334155]" />
                   <span>Copy Doctor Summary</span>
                 </>
               )}
