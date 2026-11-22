@@ -1,0 +1,173 @@
+import { useState } from 'react';
+import { Bell, Check, Clock, Volume2, X } from 'lucide-react';
+import { ScheduledDose, SkipReason } from '../types/medication';
+import { formatTime12h } from '../utils/schedule';
+import { PILL_COLOR_STYLES, PillVisual } from './PillVisual';
+
+const SKIP_REASONS: SkipReason[] = [
+  'Forgot',
+  'Not feeling well',
+  'Ran out of pills',
+  'Doctor advised',
+];
+
+interface ReminderOverlayProps {
+  dose: ScheduledDose;
+  snoozeMinutes: number;
+  isPreview?: boolean;
+  onTake: (dose: ScheduledDose) => void;
+  onSnooze: (dose: ScheduledDose) => void;
+  onSkip: (dose: ScheduledDose, reason: SkipReason) => void;
+  onDismiss: () => void;
+  onReplayChime: () => void;
+}
+
+export function ReminderOverlay({
+  dose,
+  snoozeMinutes,
+  isPreview = false,
+  onTake,
+  onSnooze,
+  onSkip,
+  onDismiss,
+  onReplayChime,
+}: ReminderOverlayProps) {
+  const [choosingSkipReason, setChoosingSkipReason] = useState(false);
+  const colorLabel = PILL_COLOR_STYLES[dose.medication.color].label;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0F172A]/65 backdrop-blur-sm p-0 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reminder-modal-title"
+    >
+      <div className="surface-card w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl border border-[#DCE3EC] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+        {/* Top bar inside sheet */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-[#E5ECF3] bg-[#F8FAFC]">
+          <div className="flex items-center gap-2.5 text-[#0E6B5E]">
+            <Bell className="w-5 h-5 shrink-0" aria-hidden="true" />
+            <span className="font-display font-semibold text-base text-[#111C2D]">
+              {isPreview ? 'Sample Medication Reminder' : 'Time for Your Medicine'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onReplayChime}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#334155] hover:bg-[#E2E8F0]/70 transition-colors"
+              aria-label="Play reminder chime again"
+              title="Play chime"
+            >
+              <Volume2 className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#334155] hover:bg-[#E2E8F0]/70 transition-colors"
+              aria-label="Close reminder"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="p-6 overflow-y-auto space-y-6">
+          <div className="flex items-start gap-4">
+            <PillVisual
+              shape={dose.medication.shape}
+              color={dose.medication.color}
+              size="lg"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-sm font-semibold text-[#0E6B5E] tabular-nums">
+                Scheduled for {formatTime12h(dose.scheduledTime)}
+              </p>
+              <h2
+                id="reminder-modal-title"
+                className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] mt-1 leading-tight"
+              >
+                {dose.medication.name} {dose.medication.dosage}
+              </h2>
+              <p className="text-base text-[#475569] mt-1.5">
+                {dose.medication.quantityLabel} · {colorLabel} {dose.medication.shape}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-[#F4F7FA] border border-[#DCE3EC] p-4 space-y-1.5">
+            <p className="text-sm font-semibold text-[#334155]">
+              How to take it
+            </p>
+            <p className="text-base text-[#111C2D] leading-relaxed">
+              {dose.medication.instructions || 'Take with a full glass of water.'}
+            </p>
+            {dose.medication.purpose && (
+              <p className="text-sm text-[#475569] pt-1">
+                For: {dose.medication.purpose}
+              </p>
+            )}
+          </div>
+
+          {!choosingSkipReason ? (
+            <div className="space-y-3 pt-1">
+              <button
+                type="button"
+                onClick={() => onTake(dose)}
+                className="w-full min-h-[60px] px-6 py-4 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] active:scale-[0.99] text-white font-display font-semibold text-lg flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+              >
+                <Check className="w-6 h-6 shrink-0" strokeWidth={2.5} />
+                <span>I Took It Now</span>
+              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => onSnooze(dose)}
+                  className="min-h-[54px] px-5 py-3.5 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Clock className="w-5 h-5 shrink-0 text-[#334155]" />
+                  <span>Remind in {snoozeMinutes} min</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChoosingSkipReason(true)}
+                  className="min-h-[54px] px-5 py-3.5 rounded-2xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#475569] font-semibold text-base flex items-center justify-center transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <span>Skip This Dose</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              <p className="text-base font-semibold text-[#111C2D]">
+                Why are you skipping this dose?
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {SKIP_REASONS.map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => onSkip(dose, reason)}
+                    className="min-h-[50px] px-4 py-3 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#111C2D] font-medium text-base text-left transition-colors cursor-pointer"
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setChoosingSkipReason(false)}
+                className="w-full min-h-[48px] px-4 py-2.5 rounded-xl text-[#475569] hover:text-[#111C2D] font-medium text-base cursor-pointer"
+              >
+                Back to reminder
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
