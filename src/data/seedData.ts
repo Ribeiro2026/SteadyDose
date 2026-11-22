@@ -93,8 +93,8 @@ export function createInitialDoseLogs(
   const todayKey = toDateKey(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // Seed past 14 days with realistic senior adherence (~88%, occasional missed evening dose)
-  for (let offset = 14; offset >= 1; offset--) {
+  // Seed past 30 days with realistic senior adherence (~88%, occasional missed evening dose)
+  for (let offset = 30; offset >= 1; offset--) {
     const dateKey = shiftDateKey(now, -offset);
     const [y, m, d] = dateKey.split('-').map(Number);
 
@@ -103,13 +103,16 @@ export function createInitialDoseLogs(
         const doseId = makeDoseId(dateKey, med.id, time);
         const [h, min] = time.split(':').map(Number);
 
-        // Deterministic realistic pattern so calendar looks authentic
+        // Deterministic realistic pattern so weekly, bi-weekly, and monthly views look authentic
         const seed = (offset * 17 + h * 7 + med.name.length) % 19;
-        if (med.id === 'med-metformin' && time === '18:30' && (offset === 4 || offset === 9)) {
-          // Missed evening Metformin twice in last two weeks
+        if (
+          med.id === 'med-metformin' &&
+          time === '18:30' &&
+          (offset === 4 || offset === 9 || offset === 17 || offset === 24)
+        ) {
           continue;
         }
-        if (med.id === 'med-atorvastatin' && offset === 6) {
+        if (med.id === 'med-atorvastatin' && (offset === 6 || offset === 19 || offset === 27)) {
           logs[doseId] = {
             id: doseId,
             dateKey,
@@ -120,7 +123,7 @@ export function createInitialDoseLogs(
           };
           continue;
         }
-        if (med.id === 'med-vitamin-d' && offset === 11) {
+        if (med.id === 'med-vitamin-d' && (offset === 11 || offset === 22)) {
           continue;
         }
 

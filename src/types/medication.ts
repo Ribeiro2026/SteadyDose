@@ -22,7 +22,7 @@ export type ChimeStyle = 'bell' | 'warm' | 'clear';
 
 export type TextScale = 'standard' | 'large' | 'xlarge';
 
-export type NavTab = 'today' | 'adherence' | 'medications' | 'alerts';
+export type NavTab = 'today' | 'adherence' | 'medications' | 'nearby' | 'alerts';
 
 export interface Medication {
   id: string;

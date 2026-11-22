@@ -21,6 +21,7 @@ import {
 } from '../utils/schedule';
 import { PillVisual } from './PillVisual';
 import { ProgressRing } from './ProgressRing';
+import { WeeklyAdherenceChart } from './WeeklyAdherenceChart';
 
 interface AdherenceViewProps {
   now: Date;
@@ -205,6 +206,17 @@ export function AdherenceView({
           </div>
         </div>
       </div>
+
+      {/* Weekly / Bi-weekly / Monthly Taken vs. Missed Bar Chart */}
+      <WeeklyAdherenceChart
+        now={now}
+        medications={medications}
+        logs={logs}
+        rangeDays={rangeDays}
+        onRangeChange={setRangeDays}
+        selectedDateKey={inspectedDateKey}
+        onSelectDateKey={setInspectedDateKey}
+      />
 
       {/* Daily Calendar Grid + Day Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

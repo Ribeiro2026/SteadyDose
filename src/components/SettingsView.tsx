@@ -16,6 +16,7 @@ import {
   TextScale,
 } from '../types/medication';
 import { formatTime12h, formatTimestamp12h } from '../utils/schedule';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -319,8 +320,10 @@ export function SettingsView({
           </section>
         </div>
 
-        {/* Right column: Caregiver & Pharmacy Info */}
+        {/* Right column: Install App, Caregiver & Pharmacy Info */}
         <div className="lg:col-span-5 space-y-6">
+          <PWAInstallButton variant="settings" />
+
           <section className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-4">
             <div className="space-y-1">
               <h2 className="font-display text-lg font-bold text-[#111C2D]">

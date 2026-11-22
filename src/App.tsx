@@ -8,12 +8,15 @@ import {
   Bell,
   CalendarCheck,
   ClipboardList,
+  MapPin,
   Pill,
   Plus,
 } from 'lucide-react';
 import { AdherenceView } from './components/AdherenceView';
 import { MedicationFormModal } from './components/MedicationFormModal';
 import { MedicationsView } from './components/MedicationsView';
+import { NearbyCareView } from './components/NearbyCareView';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { ReminderOverlay } from './components/ReminderOverlay';
 import { SettingsView } from './components/SettingsView';
 import { TodayView } from './components/TodayView';
@@ -111,6 +114,18 @@ export default function App() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState<boolean>(false);
+
+  // Listen for Google Maps Platform quota exhaustion across the entire app
+  useEffect(() => {
+    const handleQuotaExceeded = () => {
+      setMapsQuotaExceeded(true);
+    };
+    window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+    return () => {
+      window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+    };
+  }, []);
 
   // Track which dose IDs have already triggered an automatic alert during this session
   const firedAlertKeysRef = useRef<Set<string>>(new Set());
@@ -452,6 +467,21 @@ export default function App() {
     playReminderChime(style);
   }, []);
 
+  const handleSavePharmacyFromMap = useCallback(
+    (pharmacyName: string, pharmacyPhone: string) => {
+      setSettings((prev) => ({
+        ...prev,
+        caregiver: {
+          ...prev.caregiver,
+          pharmacyName,
+          pharmacyPhone: pharmacyPhone || prev.caregiver.pharmacyPhone,
+        },
+      }));
+      showToast(`Saved ${pharmacyName} as your pharmacy.`);
+    },
+    [showToast]
+  );
+
   const navItems: Array<{
     id: NavTab;
     label: string;
@@ -471,12 +501,37 @@ export default function App() {
       shortLabel: 'Medicines',
       icon: Pill,
     },
+    {
+      id: 'nearby',
+      label: 'Nearby Care',
+      shortLabel: 'Nearby',
+      icon: MapPin,
+    },
     { id: 'alerts', label: 'Care & Alerts', shortLabel: 'Alerts', icon: Bell },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F7FA] text-[#111C2D]">
-      {/* Top Bar Contract: Desktop 3-zone header (Wordmark — 4 Nav Links — 1 Primary CTA), Mobile compact 52px bar */}
+      {mapsQuotaExceeded && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm print:hidden">
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
+
+      <OfflineIndicator />
+
+      {/* Top Bar Contract: Desktop 3-zone header (Wordmark — 5 Nav Links — 1 Primary CTA), Mobile compact 52px bar */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#DCE3EC] print:hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-8">
           {/* Zone 1: Single-element Brand Wordmark */}
@@ -491,9 +546,9 @@ export default function App() {
             SteadyDose
           </button>
 
-          {/* Zone 2: 4 clean single-line text links (Desktop) */}
+          {/* Zone 2: 5 clean single-line text links (Desktop) */}
           <nav
-            className="hidden md:flex items-center gap-7"
+            className="hidden md:flex items-center gap-6"
             aria-label="Main navigation"
           >
             {navItems.map((item) => {
@@ -574,6 +629,13 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'nearby' && (
+          <NearbyCareView
+            savedPharmacyName={settings.caregiver.pharmacyName}
+            onSavePharmacy={handleSavePharmacyFromMap}
+          />
+        )}
+
         {activeTab === 'alerts' && (
           <SettingsView
             settings={settings}
@@ -589,12 +651,12 @@ export default function App() {
         )}
       </main>
 
-      {/* Fixed Mobile Bottom Navigation Bar (Natural Thumb Zone, 4 destinations) */}
+      {/* Fixed Mobile Bottom Navigation Bar (Natural Thumb Zone, 5 destinations) */}
       <nav
         aria-label="Mobile navigation"
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#DCE3EC] pb-safe print:hidden"
       >
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;

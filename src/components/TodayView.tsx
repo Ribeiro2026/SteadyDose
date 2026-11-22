@@ -25,6 +25,7 @@ import {
   toDateKey,
 } from '../utils/schedule';
 import { PILL_COLOR_STYLES, PillVisual } from './PillVisual';
+import { PWAInstallButton } from './PWAInstallButton';
 import { ProgressRing } from './ProgressRing';
 
 interface TodayViewProps {
@@ -518,6 +519,9 @@ export function TodayView({
               </p>
             </div>
           </div>
+
+          {/* Install on Smartphone Card */}
+          <PWAInstallButton variant="card" />
 
           {/* Timely Reminder Preview Card */}
           <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 space-y-3.5">
