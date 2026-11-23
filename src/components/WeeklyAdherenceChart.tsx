@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useLanguage } from '../i18n/LanguageContext';
 import { DoseLogEntry, Medication } from '../types/medication';
 import {
   computeAdherenceSummary,
@@ -16,16 +17,6 @@ import {
 } from '../utils/schedule';
 
 export type ChartRangeDays = 7 | 14 | 30;
-
-const RANGE_OPTIONS: Array<{
-  days: ChartRangeDays;
-  label: string;
-  heading: string;
-}> = [
-  { days: 7, label: 'Weekly', heading: 'Past 7 Days · Taken vs. Missed' },
-  { days: 14, label: 'Bi-weekly', heading: 'Past 14 Days · Taken vs. Missed' },
-  { days: 30, label: 'Monthly', heading: 'Past 30 Days · Taken vs. Missed' },
-];
 
 interface ChartDatum {
   dateKey: string;
@@ -45,28 +36,36 @@ interface CustomTooltipProps {
 }
 
 function AdherenceChartTooltip({ active, payload }: CustomTooltipProps) {
+  const { t, isRTL } = useLanguage();
   if (!active || !payload || payload.length === 0) return null;
   const item = payload[0]?.payload;
   if (!item) return null;
 
   return (
-    <div className="rounded-2xl bg-white border border-[#CBD5E1] shadow-lg px-4 py-3 text-sm space-y-1.5 min-w-[196px]">
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      className="rounded-2xl bg-white border border-[#CBD5E1] shadow-lg px-4 py-3 text-sm space-y-1.5 min-w-[196px]"
+    >
       <p className="font-display font-bold text-[#111C2D]">
         {item.fullDateLabel}
       </p>
       {item.totalCount === 0 ? (
-        <p className="text-[#475569]">No scheduled doses due yet.</p>
+        <p className="text-[#475569]">{t.chart.noScheduledYet}</p>
       ) : (
         <div className="space-y-1 tabular-nums">
           <div className="flex items-center justify-between gap-4">
-            <span className="font-semibold text-[#0E6B5E]">Taken</span>
-            <span className="font-mono font-semibold text-[#111C2D]">
+            <span className="font-semibold text-[#0E6B5E]">
+              {t.chart.takenWord}
+            </span>
+            <span dir="ltr" className="font-mono font-semibold text-[#111C2D]">
               {item.takenPct}% ({item.takenCount}/{item.totalCount})
             </span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="font-semibold text-[#B91C1C]">Missed</span>
-            <span className="font-mono font-semibold text-[#111C2D]">
+            <span className="font-semibold text-[#B91C1C]">
+              {t.chart.missedWord}
+            </span>
+            <span dir="ltr" className="font-mono font-semibold text-[#111C2D]">
               {item.missedPct}% ({item.missedCount}/{item.totalCount})
             </span>
           </div>
@@ -95,6 +94,7 @@ export function WeeklyAdherenceChart({
   selectedDateKey,
   onSelectDateKey,
 }: WeeklyAdherenceChartProps) {
+  const { t, locale } = useLanguage();
   const [internalRangeDays, setInternalRangeDays] =
     useState<ChartRangeDays>(7);
 
@@ -107,10 +107,18 @@ export function WeeklyAdherenceChart({
     }
   };
 
+  const rangeOptions = useMemo(
+    () => [
+      { days: 7 as ChartRangeDays, label: t.chart.weekly, heading: t.chart.heading(7) },
+      { days: 14 as ChartRangeDays, label: t.chart.biweekly, heading: t.chart.heading(14) },
+      { days: 30 as ChartRangeDays, label: t.chart.monthly, heading: t.chart.heading(30) },
+    ],
+    [t]
+  );
+
   const todayKey = toDateKey(now);
   const rangeMeta =
-    RANGE_OPTIONS.find((opt) => opt.days === activeRangeDays) ??
-    RANGE_OPTIONS[0];
+    rangeOptions.find((opt) => opt.days === activeRangeDays) ?? rangeOptions[0];
 
   const periodSummary = useMemo(
     () => computeAdherenceSummary(medications, logs, activeRangeDays, now),
@@ -123,16 +131,16 @@ export function WeeklyAdherenceChart({
       const isToday = day.dateKey === todayKey;
 
       const dayLabel = isToday
-        ? 'Today'
+        ? t.today.todayShort
         : activeRangeDays === 7
-          ? dateObj.toLocaleDateString([], { weekday: 'short', day: 'numeric' })
-          : dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
+          ? dateObj.toLocaleDateString(locale, { weekday: 'short', day: 'numeric' })
+          : dateObj.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 
       const shortLabel = isToday
-        ? 'Today'
-        : dateObj.toLocaleDateString([], { weekday: 'short' });
+        ? t.today.todayShort
+        : dateObj.toLocaleDateString(locale, { weekday: 'short' });
 
-      const fullDateLabel = dateObj.toLocaleDateString([], {
+      const fullDateLabel = dateObj.toLocaleDateString(locale, {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
@@ -155,7 +163,7 @@ export function WeeklyAdherenceChart({
         totalCount: day.total,
       };
     });
-  }, [periodSummary, todayKey, activeRangeDays]);
+  }, [periodSummary, todayKey, activeRangeDays, locale, t]);
 
   // Group into readable period chunks when viewing Bi-weekly (2 weeks) or Monthly (4 chunks)
   const chunkedSummaries = useMemo(() => {
@@ -184,11 +192,11 @@ export function WeeklyAdherenceChart({
 
       chunks.push({
         label: isLastChunk
-          ? 'This Week'
+          ? t.chart.thisWeek
           : activeRangeDays === 14
-            ? 'Previous Week'
-            : `Week ${weekIndex}`,
-        dateRange: `${startObj.toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${endObj.toLocaleDateString([], { month: 'short', day: 'numeric' })}`,
+            ? t.chart.previousWeek
+            : t.chart.weekNumber(weekIndex),
+        dateRange: `${startObj.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${endObj.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`,
         takenPct,
         taken,
         total,
@@ -196,7 +204,7 @@ export function WeeklyAdherenceChart({
       });
     }
     return chunks;
-  }, [activeRangeDays, chartData]);
+  }, [activeRangeDays, chartData, locale, t]);
 
   const averageMissedPct =
     periodSummary.totalScheduled > 0 ? 100 - periodSummary.percentage : 0;
@@ -208,7 +216,7 @@ export function WeeklyAdherenceChart({
 
   return (
     <section
-      aria-label={`${rangeMeta.label} taken versus missed medication bar chart`}
+      aria-label={t.chart.ariaLabel(rangeMeta.label)}
       className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-5"
     >
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -217,8 +225,11 @@ export function WeeklyAdherenceChart({
             {rangeMeta.heading}
           </h2>
           <p className="text-sm text-[#475569] mt-0.5 tabular-nums">
-            {activeRangeDays}-day average: {periodSummary.percentage}% taken ·{' '}
-            {averageMissedPct}% missed or skipped
+            {t.chart.averageSummary(
+              activeRangeDays,
+              periodSummary.percentage,
+              averageMissedPct
+            )}
           </p>
         </div>
 
@@ -227,9 +238,9 @@ export function WeeklyAdherenceChart({
           <div
             className="inline-flex items-center p-1 rounded-2xl bg-[#E8EEF5]"
             role="group"
-            aria-label="Chart time period"
+            aria-label={t.chart.periodAria}
           >
-            {RANGE_OPTIONS.map((option) => {
+            {rangeOptions.map((option) => {
               const active = option.days === activeRangeDays;
               return (
                 <button
@@ -256,21 +267,21 @@ export function WeeklyAdherenceChart({
                 className="w-3.5 h-3.5 rounded-sm bg-[#0E6B5E] shrink-0"
                 aria-hidden="true"
               />
-              <span className="whitespace-nowrap">Taken (%)</span>
+              <span className="whitespace-nowrap">{t.chart.takenPctLabel}</span>
             </div>
             <div className="flex items-center gap-2 text-[#111C2D]">
               <span
                 className="w-3.5 h-3.5 rounded-sm bg-[#DC2626] shrink-0"
                 aria-hidden="true"
               />
-              <span className="whitespace-nowrap">Missed (%)</span>
+              <span className="whitespace-nowrap">{t.chart.missedPctLabel}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recharts Responsive Bar Chart */}
-      <div className="w-full h-64 sm:h-72 min-w-0">
+      {/* Recharts Responsive Bar Chart (dir="ltr" preserves SVG axis layout in RTL languages) */}
+      <div dir="ltr" className="w-full h-64 sm:h-72 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
@@ -323,7 +334,7 @@ export function WeeklyAdherenceChart({
             />
             <Bar
               dataKey="takenPct"
-              name="Taken (%)"
+              name={t.chart.takenPctLabel}
               stackId="adherence"
               fill="#0E6B5E"
               radius={[0, 0, 4, 4]}
@@ -333,7 +344,7 @@ export function WeeklyAdherenceChart({
             />
             <Bar
               dataKey="missedPct"
-              name="Missed (%)"
+              name={t.chart.missedPctLabel}
               stackId="adherence"
               fill="#DC2626"
               radius={[4, 4, 0, 0]}
@@ -349,7 +360,7 @@ export function WeeklyAdherenceChart({
       {activeRangeDays === 7 ? (
         <div
           className="grid grid-cols-7 gap-1.5 pt-2 border-t border-[#E5ECF3]"
-          aria-label="Daily percentage breakdown for past week"
+          aria-label={t.chart.dailyBreakdownAria}
         >
           {chartData.map((day) => {
             const isSelected = selectedDateKey === day.dateKey;
@@ -363,9 +374,14 @@ export function WeeklyAdherenceChart({
                     ? 'bg-[#111C2D] text-white'
                     : 'bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#111C2D]'
                 }`}
-                aria-label={`${day.fullDateLabel}: ${day.takenPct}% taken, ${day.missedPct}% missed`}
+                aria-label={t.chart.dayBarAria(
+                  day.fullDateLabel,
+                  day.takenPct,
+                  day.missedPct
+                )}
               >
                 <span
+                  dir="ltr"
                   className={`block font-mono text-xs font-bold tabular-nums ${
                     isSelected
                       ? 'text-white'
@@ -396,14 +412,14 @@ export function WeeklyAdherenceChart({
               ? 'grid-cols-1 sm:grid-cols-2'
               : 'grid-cols-2 sm:grid-cols-4'
           }`}
-          aria-label="Weekly summary breakdown"
+          aria-label={t.chart.weeklyBreakdownAria}
         >
           {chunkedSummaries.map((chunk) => (
             <button
               key={chunk.label}
               type="button"
               onClick={() => onSelectDateKey?.(chunk.lastDateKey)}
-              className="min-h-[56px] p-3 rounded-2xl bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E5ECF3] text-left flex items-center justify-between gap-2 transition-colors cursor-pointer"
+              className="min-h-[56px] p-3 rounded-2xl bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E5ECF3] text-start flex items-center justify-between gap-2 transition-colors cursor-pointer"
             >
               <div className="min-w-0">
                 <span className="block text-sm font-semibold text-[#111C2D] truncate">
@@ -413,15 +429,19 @@ export function WeeklyAdherenceChart({
                   {chunk.dateRange}
                 </span>
               </div>
-              <div className="text-right shrink-0 tabular-nums">
+              <div className="text-end shrink-0 tabular-nums">
                 <span
+                  dir="ltr"
                   className={`block font-mono text-sm font-bold ${
                     chunk.takenPct >= 85 ? 'text-[#0E6B5E]' : 'text-[#B45309]'
                   }`}
                 >
                   {chunk.takenPct}%
                 </span>
-                <span className="block font-mono text-[11px] text-[#64748B]">
+                <span
+                  dir="ltr"
+                  className="block font-mono text-[11px] text-[#64748B]"
+                >
                   {chunk.taken}/{chunk.total}
                 </span>
               </div>

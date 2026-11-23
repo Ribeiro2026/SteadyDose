@@ -1,6 +1,6 @@
 {
   "name": "SteadyDose",
   "description": "A senior-friendly mobile medication reminder and adherence tracker with clear visual pill identification, gentle audio alerts, and daily tracking.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

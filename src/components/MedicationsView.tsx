@@ -7,9 +7,9 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 import { Medication } from '../types/medication';
-import { formatTime12h } from '../utils/schedule';
-import { PILL_COLOR_STYLES, PillVisual } from './PillVisual';
+import { PillVisual } from './PillVisual';
 
 interface MedicationsViewProps {
   medications: Medication[];
@@ -28,15 +28,18 @@ export function MedicationsView({
   onDelete,
   onRefill,
 }: MedicationsViewProps) {
+  const { t, formatTime, getDisplayMed } = useLanguage();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const activeMeds = medications.filter((m) => m.active);
   const pausedMeds = medications.filter((m) => !m.active);
 
   const renderMedCard = (med: Medication) => {
+    const dispMed = getDisplayMed(med);
     const isLow = med.active && med.remainingPills <= med.refillThreshold;
     const isConfirming = confirmDeleteId === med.id;
-    const colorName = PILL_COLOR_STYLES[med.color].label;
+    const colorName = t.pills.colors[med.color].label;
+    const shapeName = t.pills.shapes[med.shape];
 
     return (
       <article
@@ -51,44 +54,47 @@ export function MedicationsView({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-display text-xl font-bold text-[#111C2D] leading-snug">
-                  {med.name} {med.dosage}
+                  {dispMed.name} {dispMed.dosage}
                 </h2>
                 {!med.active && (
                   <span className="text-sm font-semibold text-[#64748B]">
-                    Paused
+                    {t.medications.paused}
                   </span>
                 )}
               </div>
               <p className="text-sm text-[#475569] mt-0.5">
-                {med.quantityLabel} · {colorName} {med.shape} · {med.purpose}
+                {dispMed.quantityLabel} · {colorName} {shapeName} · {dispMed.purpose}
               </p>
             </div>
           </div>
 
           <div className="space-y-2 text-sm border-t border-[#E5ECF3] pt-4">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[#475569]">Reminder times</span>
-              <span className="font-mono font-semibold text-[#111C2D] text-right tabular-nums">
-                {med.times.map(formatTime12h).join(' · ')}
+              <span className="text-[#475569]">{t.medications.reminderTimes}</span>
+              <span
+                dir="ltr"
+                className="font-mono font-semibold text-[#111C2D] text-end tabular-nums"
+              >
+                {med.times.map(formatTime).join(' · ')}
               </span>
             </div>
 
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[#475569]">Instructions</span>
-              <span className="text-[#111C2D] text-right">
-                {med.instructions}
+              <span className="text-[#475569]">{t.medications.instructions}</span>
+              <span className="text-[#111C2D] text-end">
+                {dispMed.instructions}
               </span>
             </div>
 
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[#475569]">Supply on hand</span>
+              <span className="text-[#475569]">{t.medications.supplyOnHand}</span>
               <span
                 className={`font-mono font-semibold tabular-nums ${
                   isLow ? 'text-[#B45309]' : 'text-[#111C2D]'
                 }`}
               >
-                {med.remainingPills} pills
-                {isLow ? ' · Refill soon' : ''}
+                {t.medications.pillsCount(med.remainingPills)}
+                {isLow ? t.medications.refillSoonSuffix : ''}
               </span>
             </div>
           </div>
@@ -98,7 +104,7 @@ export function MedicationsView({
         {isConfirming ? (
           <div className="rounded-2xl bg-[#FEF2F2] border border-[#FECACA] p-3.5 space-y-3">
             <p className="text-sm font-semibold text-[#991B1B]">
-              Remove {med.name} from your schedule?
+              {t.medications.confirmRemove(dispMed.name)}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -109,14 +115,14 @@ export function MedicationsView({
                 }}
                 className="flex-1 min-h-[44px] px-4 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white font-semibold text-sm transition-colors cursor-pointer"
               >
-                Yes, Remove
+                {t.medications.yesRemove}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDeleteId(null)}
                 className="flex-1 min-h-[44px] px-4 rounded-xl bg-white border border-[#CBD5E1] text-[#334155] font-semibold text-sm hover:bg-[#F8FAFC] transition-colors cursor-pointer"
               >
-                Cancel
+                {t.medications.cancel}
               </button>
             </div>
           </div>
@@ -128,7 +134,7 @@ export function MedicationsView({
               className="min-h-[46px] px-3.5 rounded-xl bg-[#0E6B5E]/10 hover:bg-[#0E6B5E]/15 text-[#0E6B5E] font-semibold text-sm flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <PackagePlus className="w-4 h-4 shrink-0" />
-              <span>+30 Refill</span>
+              <span>{t.medications.refill30}</span>
             </button>
 
             <button
@@ -137,7 +143,7 @@ export function MedicationsView({
               className="min-h-[46px] px-3.5 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-sm flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Pencil className="w-4 h-4 shrink-0" />
-              <span>Edit</span>
+              <span>{t.medications.edit}</span>
             </button>
 
             <button
@@ -148,12 +154,12 @@ export function MedicationsView({
               {med.active ? (
                 <>
                   <PauseCircle className="w-4 h-4 shrink-0" />
-                  <span>Pause</span>
+                  <span>{t.medications.pause}</span>
                 </>
               ) : (
                 <>
                   <PlayCircle className="w-4 h-4 shrink-0 text-[#0E6B5E]" />
-                  <span>Resume</span>
+                  <span>{t.medications.resume}</span>
                 </>
               )}
             </button>
@@ -161,9 +167,9 @@ export function MedicationsView({
             <button
               type="button"
               onClick={() => setConfirmDeleteId(med.id)}
-              className="min-h-[46px] min-w-[46px] ml-auto rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#FEF2F2] hover:border-[#FECACA] text-[#475569] hover:text-[#B91C1C] flex items-center justify-center transition-colors cursor-pointer"
-              aria-label={`Remove ${med.name}`}
-              title="Remove medicine"
+              className="min-h-[46px] min-w-[46px] ms-auto rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#FEF2F2] hover:border-[#FECACA] text-[#475569] hover:text-[#B91C1C] flex items-center justify-center transition-colors cursor-pointer"
+              aria-label={t.medications.removeAria(dispMed.name)}
+              title={t.medications.removeTitle}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -177,9 +183,11 @@ export function MedicationsView({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-[#475569]">Medicine Cabinet</p>
+          <p className="text-sm font-medium text-[#475569]">
+            {t.medications.eyebrow}
+          </p>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] tracking-tight mt-0.5">
-            My Medications ({activeMeds.length} Active)
+            {t.medications.title(activeMeds.length)}
           </h1>
         </div>
 
@@ -189,18 +197,17 @@ export function MedicationsView({
           className="self-start sm:self-auto min-h-[50px] px-5 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white font-display font-semibold text-base flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
         >
           <Plus className="w-5 h-5 shrink-0" />
-          <span>Add Medicine</span>
+          <span>{t.medications.addMedicine}</span>
         </button>
       </div>
 
       {activeMeds.length === 0 ? (
         <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-8 text-center space-y-3">
           <h2 className="font-display text-xl font-bold text-[#111C2D]">
-            No active medications
+            {t.medications.emptyTitle}
           </h2>
           <p className="text-base text-[#475569]">
-            Add a medication to start receiving reminders and tracking your
-            supply.
+            {t.medications.emptyBody}
           </p>
         </div>
       ) : (
@@ -212,7 +219,7 @@ export function MedicationsView({
       {pausedMeds.length > 0 && (
         <section className="space-y-3 pt-2">
           <h2 className="font-display text-lg font-bold text-[#475569]">
-            Paused Medications ({pausedMeds.length})
+            {t.medications.pausedSectionTitle(pausedMeds.length)}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {pausedMeds.map(renderMedCard)}

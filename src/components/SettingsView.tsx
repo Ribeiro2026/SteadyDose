@@ -9,13 +9,14 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 import {
   AppSettings,
   ChimeStyle,
   ScheduledDose,
   TextScale,
 } from '../types/medication';
-import { formatTime12h, formatTimestamp12h } from '../utils/schedule';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface SettingsViewProps {
@@ -28,23 +29,6 @@ interface SettingsViewProps {
   onTriggerTestReminder: () => void;
 }
 
-const CHIME_OPTIONS: Array<{ value: ChimeStyle; label: string; desc: string }> =
-  [
-    { value: 'bell', label: 'Gentle Bell', desc: 'Soft two-note chime' },
-    { value: 'warm', label: 'Warm Triad', desc: 'Calm rising chord' },
-    {
-      value: 'clear',
-      label: 'Clear Tone',
-      desc: 'Brighter, easier to hear',
-    },
-  ];
-
-const TEXT_SCALE_OPTIONS: Array<{ value: TextScale; label: string }> = [
-  { value: 'standard', label: 'Standard' },
-  { value: 'large', label: 'Large Text' },
-  { value: 'xlarge', label: 'Extra Large' },
-];
-
 const SNOOZE_OPTIONS: Array<10 | 15 | 30> = [10, 15, 30];
 
 export function SettingsView({
@@ -56,9 +40,23 @@ export function SettingsView({
   onTestSound,
   onTriggerTestReminder,
 }: SettingsViewProps) {
+  const { t, formatTime, formatTimestamp, getDisplayMed } = useLanguage();
   const [caregiverForm, setCaregiverForm] = useState(settings.caregiver);
   const [savedCaregiver, setSavedCaregiver] = useState(false);
   const [copiedUpdate, setCopiedUpdate] = useState(false);
+
+  const chimeOptions: Array<{ value: ChimeStyle; label: string; desc: string }> =
+    [
+      { value: 'bell', label: t.settings.chimeBell, desc: t.settings.chimeBellDesc },
+      { value: 'warm', label: t.settings.chimeWarm, desc: t.settings.chimeWarmDesc },
+      { value: 'clear', label: t.settings.chimeClear, desc: t.settings.chimeClearDesc },
+    ];
+
+  const textScaleOptions: Array<{ value: TextScale; label: string }> = [
+    { value: 'standard', label: t.settings.textStandard },
+    { value: 'large', label: t.settings.textLarge },
+    { value: 'xlarge', label: t.settings.textXLarge },
+  ];
 
   const handleSaveCaregiver = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,17 +69,18 @@ export function SettingsView({
     const taken = todayDoses.filter((d) => d.status === 'taken').length;
     const total = todayDoses.length;
     const lines = [
-      `Medication check-in for today: ${taken} of ${total} doses taken.`,
+      t.settings.checkinHeader(taken, total),
       ...todayDoses.map((d) => {
+        const dispMed = getDisplayMed(d.medication);
         const status =
           d.status === 'taken'
-            ? `Taken at ${formatTimestamp12h(d.log?.takenAt)}`
+            ? t.settings.checkinTakenAt(formatTimestamp(d.log?.takenAt))
             : d.status === 'skipped'
-              ? 'Skipped'
+              ? t.settings.checkinSkipped
               : d.isOverdue
-                ? 'Still due'
-                : `Scheduled ${formatTime12h(d.scheduledTime)}`;
-        return `- ${d.medication.name} (${d.medication.dosage}): ${status}`;
+                ? t.settings.checkinStillDue
+                : t.settings.checkinScheduled(formatTime(d.scheduledTime));
+        return `- ${dispMed.name} (${dispMed.dosage}): ${status}`;
       }),
     ];
     const message = lines.join('\n');
@@ -103,26 +102,28 @@ export function SettingsView({
     <div className="space-y-6">
       <div>
         <p className="text-sm font-medium text-[#475569]">
-          Care, Alerts & Comfort
+          {t.settings.eyebrow}
         </p>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] tracking-tight mt-0.5">
-          Reminders & Reading Settings
+          {t.settings.title}
         </h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left column: Sound, Alerts & Accessibility */}
+        {/* Left column: Language, Sound, Alerts & Accessibility */}
         <div className="lg:col-span-7 space-y-6">
+          {/* Language Picker */}
+          <LanguageSwitcher variant="settings" />
+
           {/* Reminder Sound & Alerts */}
           <section className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-display text-lg font-bold text-[#111C2D]">
-                  Reminder Chime & Alerts
+                  {t.settings.chimeTitle}
                 </h2>
                 <p className="text-sm text-[#475569] mt-0.5">
-                  Play a pleasant sound and show a clear full-screen alert when a
-                  dose is due.
+                  {t.settings.chimeDesc}
                 </p>
               </div>
               <button
@@ -141,12 +142,12 @@ export function SettingsView({
                 {settings.soundEnabled ? (
                   <>
                     <Volume2 className="w-4 h-4 shrink-0" />
-                    <span>Sound On</span>
+                    <span>{t.settings.soundOn}</span>
                   </>
                 ) : (
                   <>
                     <VolumeX className="w-4 h-4 shrink-0" />
-                    <span>Muted</span>
+                    <span>{t.settings.muted}</span>
                   </>
                 )}
               </button>
@@ -154,10 +155,10 @@ export function SettingsView({
 
             <div className="space-y-2">
               <p className="text-sm font-semibold text-[#111C2D]">
-                Chime Tone (tap to preview)
+                {t.settings.chimeToneLabel}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                {CHIME_OPTIONS.map((option) => {
+                {chimeOptions.map((option) => {
                   const selected = settings.chimeStyle === option.value;
                   return (
                     <button
@@ -170,7 +171,7 @@ export function SettingsView({
                         });
                         onTestSound(option.value);
                       }}
-                      className={`min-h-[58px] p-3 rounded-2xl border text-left transition-colors cursor-pointer ${
+                      className={`min-h-[58px] p-3 rounded-2xl border text-start transition-colors cursor-pointer ${
                         selected
                           ? 'bg-[#F0FDF9] border-[#0E6B5E] text-[#111C2D]'
                           : 'bg-white border-[#CBD5E1] text-[#111C2D] hover:bg-[#F8FAFC]'
@@ -190,7 +191,7 @@ export function SettingsView({
 
             <div className="space-y-2">
               <p className="text-sm font-semibold text-[#111C2D]">
-                Snooze Duration
+                {t.settings.snoozeDuration}
               </p>
               <div className="grid grid-cols-3 gap-2.5">
                 {SNOOZE_OPTIONS.map((mins) => {
@@ -206,7 +207,7 @@ export function SettingsView({
                           : 'bg-white border-[#CBD5E1] text-[#111C2D] hover:bg-[#F8FAFC]'
                       }`}
                     >
-                      {mins} minutes
+                      {t.settings.minutesLabel(mins)}
                     </button>
                   );
                 })}
@@ -217,16 +218,16 @@ export function SettingsView({
             <div className="pt-4 border-t border-[#E5ECF3] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <p className="font-semibold text-base text-[#111C2D]">
-                  Device Notifications
+                  {t.settings.deviceNotifications}
                 </p>
                 <p className="text-sm text-[#475569]">
                   {notificationPermission === 'granted'
-                    ? 'Device alerts are turned on for scheduled medication times.'
+                    ? t.settings.notifGranted
                     : notificationPermission === 'denied'
-                      ? 'Notifications are blocked in your browser settings. In-app alerts still work.'
+                      ? t.settings.notifDenied
                       : notificationPermission === 'unsupported'
-                        ? 'Your browser uses in-app reminders and chimes.'
-                        : 'Allow alerts even when this tab is in the background.'}
+                        ? t.settings.notifUnsupported
+                        : t.settings.notifDefault}
                 </p>
               </div>
               {notificationPermission === 'default' && (
@@ -236,12 +237,12 @@ export function SettingsView({
                   className="min-h-[48px] px-4 rounded-xl bg-[#111C2D] hover:bg-[#1E293B] text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <BellRing className="w-4 h-4 shrink-0" />
-                  <span>Enable Alerts</span>
+                  <span>{t.settings.enableAlerts}</span>
                 </button>
               )}
               {notificationPermission === 'granted' && (
                 <span className="text-sm font-semibold text-[#0E6B5E] whitespace-nowrap">
-                  Enabled
+                  {t.settings.enabled}
                 </span>
               )}
             </div>
@@ -253,7 +254,7 @@ export function SettingsView({
                 className="w-full min-h-[52px] px-5 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <Bell className="w-5 h-5 shrink-0 text-[#0E6B5E]" />
-                <span>Test Full Reminder Screen Now</span>
+                <span>{t.settings.testFullReminder}</span>
               </button>
             </div>
           </section>
@@ -262,17 +263,19 @@ export function SettingsView({
           <section className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-5">
             <div>
               <h2 className="font-display text-lg font-bold text-[#111C2D]">
-                Reading Comfort & Accessibility
+                {t.settings.readingComfortTitle}
               </h2>
               <p className="text-sm text-[#475569] mt-0.5">
-                Adjust text size and border contrast for effortless reading.
+                {t.settings.readingComfortDesc}
               </p>
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-[#111C2D]">Text Size</p>
+              <p className="text-sm font-semibold text-[#111C2D]">
+                {t.settings.textSize}
+              </p>
               <div className="grid grid-cols-3 gap-2.5">
-                {TEXT_SCALE_OPTIONS.map((opt) => {
+                {textScaleOptions.map((opt) => {
                   const selected = settings.textScale === opt.value;
                   return (
                     <button
@@ -295,10 +298,10 @@ export function SettingsView({
             <div className="flex items-center justify-between gap-4 pt-3 border-t border-[#E5ECF3]">
               <div>
                 <p className="font-semibold text-base text-[#111C2D]">
-                  Extra High Contrast Borders
+                  {t.settings.highContrastTitle}
                 </p>
                 <p className="text-sm text-[#475569]">
-                  Strengthens card outlines and foreground text contrast.
+                  {t.settings.highContrastDesc}
                 </p>
               </div>
               <button
@@ -314,7 +317,7 @@ export function SettingsView({
                     : 'bg-[#F1F5F9] text-[#475569]'
                 }`}
               >
-                {settings.highContrast ? 'On' : 'Off'}
+                {settings.highContrast ? t.settings.on : t.settings.off}
               </button>
             </div>
           </section>
@@ -327,11 +330,10 @@ export function SettingsView({
           <section className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-4">
             <div className="space-y-1">
               <h2 className="font-display text-lg font-bold text-[#111C2D]">
-                Family Caregiver Check-In
+                {t.settings.caregiverTitle}
               </h2>
               <p className="text-sm text-[#475569] leading-relaxed">
-                Keep a family member updated with one tap, and store your
-                pharmacy number handy for refills.
+                {t.settings.caregiverDesc}
               </p>
             </div>
 
@@ -343,12 +345,12 @@ export function SettingsView({
               {copiedUpdate ? (
                 <>
                   <ClipboardCheck className="w-5 h-5 shrink-0" />
-                  <span>Today’s Check-In Copied</span>
+                  <span>{t.settings.checkinCopied}</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-5 h-5 shrink-0" />
-                  <span>Copy Today’s Update</span>
+                  <span>{t.settings.copyTodaysUpdate}</span>
                 </>
               )}
             </button>
@@ -362,7 +364,7 @@ export function SettingsView({
                   htmlFor="cg-name"
                   className="block text-sm font-semibold text-[#111C2D] mb-1"
                 >
-                  Caregiver Name
+                  {t.settings.caregiverName}
                 </label>
                 <input
                   id="cg-name"
@@ -381,7 +383,7 @@ export function SettingsView({
                     htmlFor="cg-rel"
                     className="block text-sm font-semibold text-[#111C2D] mb-1"
                   >
-                    Relationship
+                    {t.settings.relationship}
                   </label>
                   <input
                     id="cg-rel"
@@ -401,11 +403,12 @@ export function SettingsView({
                     htmlFor="cg-phone"
                     className="block text-sm font-semibold text-[#111C2D] mb-1"
                   >
-                    Phone Number
+                    {t.settings.phoneNumber}
                   </label>
                   <input
                     id="cg-phone"
                     type="tel"
+                    dir="ltr"
                     value={caregiverForm.phone}
                     onChange={(e) =>
                       setCaregiverForm({
@@ -423,7 +426,7 @@ export function SettingsView({
                   htmlFor="ph-name"
                   className="block text-sm font-semibold text-[#111C2D] mb-1"
                 >
-                  Pharmacy Name
+                  {t.settings.pharmacyName}
                 </label>
                 <input
                   id="ph-name"
@@ -444,11 +447,12 @@ export function SettingsView({
                   htmlFor="ph-phone"
                   className="block text-sm font-semibold text-[#111C2D] mb-1"
                 >
-                  Pharmacy Phone
+                  {t.settings.pharmacyPhone}
                 </label>
                 <input
                   id="ph-phone"
                   type="tel"
+                  dir="ltr"
                   value={caregiverForm.pharmacyPhone}
                   onChange={(e) =>
                     setCaregiverForm({
@@ -467,7 +471,12 @@ export function SettingsView({
                     className="min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#111C2D] font-semibold text-sm inline-flex items-center gap-2 transition-colors whitespace-nowrap"
                   >
                     <Phone className="w-4 h-4 text-[#0E6B5E]" />
-                    <span>Call {caregiverForm.name.split(' ')[0] || 'Caregiver'}</span>
+                    <span>
+                      {t.settings.callCaregiver(
+                        caregiverForm.name.split(' ')[0] ||
+                          t.settings.caregiverFallback
+                      )}
+                    </span>
                   </a>
                 ) : (
                   <span />
@@ -480,10 +489,10 @@ export function SettingsView({
                   {savedCaregiver ? (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>Saved</span>
+                      <span>{t.settings.saved}</span>
                     </>
                   ) : (
-                    <span>Save Contacts</span>
+                    <span>{t.settings.saveContacts}</span>
                   )}
                 </button>
               </div>

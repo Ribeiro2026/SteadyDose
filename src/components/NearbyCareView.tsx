@@ -20,6 +20,7 @@ import {
   Search,
   Star,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 type CareCategory = 'all' | 'pharmacy' | 'clinic' | 'hospital';
 
@@ -56,50 +57,25 @@ const DEFAULT_CENTER: google.maps.LatLngLiteral = {
   lng: -122.4194,
 };
 
-const CATEGORY_OPTIONS: Array<{
-  id: CareCategory;
-  label: string;
-  types: string[];
-}> = [
-  {
-    id: 'all',
-    label: 'All Care',
-    types: [
-      'pharmacy',
-      'drugstore',
-      'medical_clinic',
-      'doctor',
-      'hospital',
-      'general_hospital',
-    ],
-  },
-  {
-    id: 'pharmacy',
-    label: 'Pharmacies',
-    types: ['pharmacy', 'drugstore'],
-  },
-  {
-    id: 'clinic',
-    label: 'Clinics',
-    types: ['medical_clinic', 'doctor', 'medical_center'],
-  },
-  {
-    id: 'hospital',
-    label: 'Hospitals',
-    types: ['hospital', 'general_hospital'],
-  },
-];
+const CATEGORY_TYPES: Record<CareCategory, string[]> = {
+  all: [
+    'pharmacy',
+    'drugstore',
+    'medical_clinic',
+    'doctor',
+    'hospital',
+    'general_hospital',
+  ],
+  pharmacy: ['pharmacy', 'drugstore'],
+  clinic: ['medical_clinic', 'doctor', 'medical_center'],
+  hospital: ['hospital', 'general_hospital'],
+};
 
-const RADIUS_OPTIONS: Array<{ label: string; meters: number }> = [
-  { label: '2 mi', meters: 3219 },
-  { label: '5 mi', meters: 8047 },
-  { label: '10 mi', meters: 16093 },
-];
+const RADIUS_METERS: [number, number, number] = [3219, 8047, 16093];
 
-const CATEGORY_VISUALS: Record<
+const CATEGORY_STYLES: Record<
   Exclude<CareCategory, 'all'>,
   {
-    label: string;
     glyph: string;
     pinBg: string;
     pinBorder: string;
@@ -107,21 +83,18 @@ const CATEGORY_VISUALS: Record<
   }
 > = {
   pharmacy: {
-    label: 'Pharmacy',
     glyph: 'Rx',
     pinBg: '#0E6B5E',
     pinBorder: '#08473E',
     textClass: 'text-[#0E6B5E]',
   },
   clinic: {
-    label: 'Clinic',
     glyph: 'C',
     pinBg: '#1D4ED8',
     pinBorder: '#1E3A8A',
     textClass: 'text-[#1D4ED8]',
   },
   hospital: {
-    label: 'Hospital',
     glyph: 'H',
     pinBg: '#B91C1C',
     pinBorder: '#7F1D1D',
@@ -146,12 +119,6 @@ function classifyPlaceCategory(
     return 'pharmacy';
   }
   return 'clinic';
-}
-
-function formatMiles(meters: number | null): string | null {
-  if (meters == null || Number.isNaN(meters)) return null;
-  const miles = meters / 1609.344;
-  return miles < 0.1 ? '< 0.1 mi' : `${miles.toFixed(1)} mi`;
 }
 
 function isQuotaError(err: unknown): boolean {
@@ -186,6 +153,7 @@ function extractTodayHours(
 
 interface CareMarkerProps {
   place: NearbyCarePlace;
+  categoryLabel: string;
   isSelected: boolean;
   isSavedPharmacy: boolean;
   onSelect: (place: NearbyCarePlace) => void;
@@ -195,22 +163,24 @@ interface CareMarkerProps {
 
 function CareMarker({
   place,
+  categoryLabel,
   isSelected,
   isSavedPharmacy,
   onSelect,
   onClose,
   onSavePharmacy,
 }: CareMarkerProps) {
+  const { t, isRTL, formatDistance } = useLanguage();
   const [markerRef, marker] = useAdvancedMarkerRef();
-  const visual = CATEGORY_VISUALS[place.category];
-  const distanceLabel = formatMiles(place.distanceMeters);
+  const visual = CATEGORY_STYLES[place.category];
+  const distanceLabel = formatDistance(place.distanceMeters);
 
   return (
     <>
       <AdvancedMarker
         ref={markerRef}
         position={place.location}
-        title={`${place.displayName} (${visual.label})`}
+        title={`${place.displayName} (${categoryLabel})`}
         onClick={() => onSelect(place)}
         zIndex={isSelected ? 20 : 1}
       >
@@ -229,11 +199,21 @@ function CareMarker({
           maxWidth={300}
           onCloseClick={onClose}
         >
-          <div className="p-1 space-y-2 text-[#111C2D]">
+          <div
+            dir={isRTL ? 'rtl' : 'ltr'}
+            className="p-1 space-y-2 text-[#111C2D] text-start"
+          >
             <div>
               <p className={`text-xs font-bold ${visual.textClass}`}>
-                {visual.label}
-                {distanceLabel ? ` · ${distanceLabel}` : ''}
+                {categoryLabel}
+                {distanceLabel ? (
+                  <>
+                    {' · '}
+                    <span dir="ltr" className="inline-block">
+                      {distanceLabel}
+                    </span>
+                  </>
+                ) : null}
               </p>
               <p className="font-display font-bold text-base leading-snug mt-0.5">
                 {place.displayName}
@@ -255,11 +235,11 @@ function CareMarker({
                       : 'font-semibold text-[#B91C1C]'
                   }
                 >
-                  {place.isOpen ? 'Open now' : 'Closed now'}
+                  {place.isOpen ? t.nearby.openNow : t.nearby.closedNow}
                 </span>
               )}
               {place.rating !== null && (
-                <span className="text-[#475569] tabular-nums">
+                <span dir="ltr" className="text-[#475569] tabular-nums inline-block">
                   · {place.rating.toFixed(1)} ({place.userRatingCount ?? 0})
                 </span>
               )}
@@ -271,7 +251,7 @@ function CareMarker({
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0E6B5E] hover:underline"
               >
                 <Phone className="w-3.5 h-3.5 shrink-0" />
-                <span>{place.nationalPhoneNumber}</span>
+                <span dir="ltr">{place.nationalPhoneNumber}</span>
               </a>
             )}
 
@@ -283,7 +263,7 @@ function CareMarker({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#111C2D] text-white text-xs font-semibold hover:bg-[#1E293B]"
                 >
-                  <span>Directions</span>
+                  <span>{t.nearby.directions}</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
@@ -302,10 +282,10 @@ function CareMarker({
                   {isSavedPharmacy ? (
                     <>
                       <Check className="w-3 h-3" />
-                      <span>Saved Pharmacy</span>
+                      <span>{t.nearby.savedPharmacy}</span>
                     </>
                   ) : (
-                    <span>Save as My Pharmacy</span>
+                    <span>{t.nearby.saveAsMyPharmacy}</span>
                   )}
                 </button>
               )}
@@ -317,6 +297,12 @@ function CareMarker({
   );
 }
 
+type LocationLabelMode =
+  | { kind: 'default' }
+  | { kind: 'current' }
+  | { kind: 'mapArea' }
+  | { kind: 'custom'; text: string };
+
 interface NearbyCareWorkspaceProps {
   savedPharmacyName: string;
   onSavePharmacy: (name: string, phone: string) => void;
@@ -326,6 +312,7 @@ function NearbyCareWorkspace({
   savedPharmacyName,
   onSavePharmacy,
 }: NearbyCareWorkspaceProps) {
+  const { language, meta, t, formatDistance } = useLanguage();
   const map = useMap('steadydose-nearby-map');
   const placesLibrary = useMapsLibrary('places');
   const geometryLibrary = useMapsLibrary('geometry');
@@ -334,11 +321,11 @@ function NearbyCareWorkspace({
     useState<google.maps.LatLngLiteral>(DEFAULT_CENTER);
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null);
-  const [locationLabel, setLocationLabel] = useState<string>(
-    'San Francisco, CA (default area)'
-  );
+  const [locationLabelMode, setLocationLabelMode] = useState<LocationLabelMode>({
+    kind: 'default',
+  });
   const [category, setCategory] = useState<CareCategory>('all');
-  const [radiusMeters, setRadiusMeters] = useState<number>(8047); // 5 mi
+  const [radiusMeters, setRadiusMeters] = useState<number>(RADIUS_METERS[1]);
   const [openNowOnly, setOpenNowOnly] = useState<boolean>(false);
 
   const [places, setPlaces] = useState<NearbyCarePlace[]>([]);
@@ -357,6 +344,48 @@ function NearbyCareWorkspace({
     useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const searchRequestCounterRef = useRef<number>(0);
 
+  const categoryLabels: Record<Exclude<CareCategory, 'all'>, string> = useMemo(
+    () => ({
+      pharmacy: t.nearby.labelPharmacy,
+      clinic: t.nearby.labelClinic,
+      hospital: t.nearby.labelHospital,
+    }),
+    [t.nearby.labelPharmacy, t.nearby.labelClinic, t.nearby.labelHospital]
+  );
+
+  const categoryOptions: Array<{ id: CareCategory; label: string }> = useMemo(
+    () => [
+      { id: 'all', label: t.nearby.catAll },
+      { id: 'pharmacy', label: t.nearby.catPharmacies },
+      { id: 'clinic', label: t.nearby.catClinics },
+      { id: 'hospital', label: t.nearby.catHospitals },
+    ],
+    [
+      t.nearby.catAll,
+      t.nearby.catPharmacies,
+      t.nearby.catClinics,
+      t.nearby.catHospitals,
+    ]
+  );
+
+  const radiusOptions = useMemo(
+    () =>
+      RADIUS_METERS.map((meters, idx) => ({
+        meters,
+        label: t.nearby.radiusLabels[idx],
+      })),
+    [t.nearby.radiusLabels]
+  );
+
+  const locationLabel =
+    locationLabelMode.kind === 'default'
+      ? t.nearby.defaultArea
+      : locationLabelMode.kind === 'current'
+        ? t.nearby.yourCurrentLocation
+        : locationLabelMode.kind === 'mapArea'
+          ? t.nearby.currentMapArea
+          : locationLabelMode.text;
+
   // Fetch nearby places using modern Places API (New): Place.searchNearby
   const runNearbySearch = useCallback(
     async (
@@ -371,9 +400,7 @@ function NearbyCareWorkspace({
       setSearchError(null);
       setMapPanned(false);
 
-      const categoryConfig =
-        CATEGORY_OPTIONS.find((opt) => opt.id === activeCategory) ??
-        CATEGORY_OPTIONS[0];
+      const categoryTypes = CATEGORY_TYPES[activeCategory] ?? CATEGORY_TYPES.all;
 
       // Clamp radius strictly to Places API (New) 50,000m maximum
       const clampedRadius = Math.min(Math.max(radius, 500), 50000);
@@ -403,11 +430,11 @@ function NearbyCareWorkspace({
             center,
             radius: clampedRadius,
           },
-          includedPrimaryTypes: categoryConfig.types,
+          includedPrimaryTypes: categoryTypes,
           maxResultCount: 15,
           rankPreference: placesLibrary.SearchNearbyRankPreference.DISTANCE,
-          language: 'en',
-          region: 'US',
+          language: meta.mapsLanguage,
+          region: meta.mapsRegion,
           internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio'],
         };
 
@@ -455,12 +482,11 @@ function NearbyCareWorkspace({
 
               return {
                 id: p.id || `${pos.lat},${pos.lng}`,
-                displayName: p.displayName || 'Healthcare Facility',
+                displayName: p.displayName || t.nearby.healthcareFacility,
                 formattedAddress: p.formattedAddress || '',
                 category: resolvedCategory,
                 primaryTypeLabel:
-                  p.primaryTypeDisplayName ||
-                  CATEGORY_VISUALS[resolvedCategory].label,
+                  p.primaryTypeDisplayName || categoryLabels[resolvedCategory],
                 location: pos,
                 distanceMeters,
                 isOpen: isOpenValue,
@@ -497,13 +523,9 @@ function NearbyCareWorkspace({
         console.error('Nearby healthcare search error:', err);
         if (isQuotaError(err)) {
           window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
-          setSearchError(
-            'Google Maps Platform quota limit reached. Please see the banner above for account options.'
-          );
+          setSearchError(t.nearby.errQuota);
         } else {
-          setSearchError(
-            'Unable to load nearby locations right now. Please check your connection and try again.'
-          );
+          setSearchError(t.nearby.errLoad);
         }
         setPlaces([]);
       } finally {
@@ -512,14 +534,30 @@ function NearbyCareWorkspace({
         }
       }
     },
-    [placesLibrary, geometryLibrary]
+    [
+      placesLibrary,
+      geometryLibrary,
+      meta.mapsLanguage,
+      meta.mapsRegion,
+      t.nearby.healthcareFacility,
+      t.nearby.errQuota,
+      t.nearby.errLoad,
+      categoryLabels,
+    ]
   );
 
-  // Trigger nearby search when Places library is ready or filters/center change
+  // Trigger nearby search when Places library is ready, filters/center change, or language changes
   useEffect(() => {
     if (!placesLibrary) return;
     void runNearbySearch(searchCenter, category, radiusMeters);
-  }, [placesLibrary, searchCenter, category, radiusMeters, runNearbySearch]);
+  }, [
+    placesLibrary,
+    searchCenter,
+    category,
+    radiusMeters,
+    language,
+    runNearbySearch,
+  ]);
 
   // Debounced address autocomplete using AutocompleteSuggestion + AutocompleteSessionToken
   useEffect(() => {
@@ -541,8 +579,8 @@ function NearbyCareWorkspace({
             {
               input: trimmed,
               sessionToken: sessionTokenRef.current,
-              language: 'en',
-              region: 'US',
+              language: meta.mapsLanguage,
+              region: meta.mapsRegion,
             }
           );
 
@@ -570,7 +608,7 @@ function NearbyCareWorkspace({
     }, 300);
 
     return () => window.clearTimeout(timer);
-  }, [addressQuery, placesLibrary]);
+  }, [addressQuery, placesLibrary, meta.mapsLanguage, meta.mapsRegion]);
 
   const handleSelectSuggestion = async (item: AutocompleteItem) => {
     setShowSuggestions(false);
@@ -596,9 +634,10 @@ function NearbyCareWorkspace({
           lng: place.location.lng(),
         };
         setSearchCenter(nextCenter);
-        setLocationLabel(
-          place.formattedAddress || place.displayName || item.mainText
-        );
+        setLocationLabelMode({
+          kind: 'custom',
+          text: place.formattedAddress || place.displayName || item.mainText,
+        });
         map?.panTo(nextCenter);
         map?.setZoom(13);
       }
@@ -607,16 +646,14 @@ function NearbyCareWorkspace({
       if (isQuotaError(err)) {
         window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
       }
-      setLocationMessage('Could not move to that address. Please try another.');
+      setLocationMessage(t.nearby.errMoveAddress);
     }
   };
 
   // Explicit user-initiated geolocation request
   const handleUseMyLocation = () => {
     if (!('geolocation' in navigator)) {
-      setLocationMessage(
-        'Location services are not available in this browser. Try searching your city or ZIP code above.'
-      );
+      setLocationMessage(t.nearby.errNoGeolocation);
       return;
     }
 
@@ -631,7 +668,7 @@ function NearbyCareWorkspace({
         };
         setUserLocation(coords);
         setSearchCenter(coords);
-        setLocationLabel('Your current location');
+        setLocationLabelMode({ kind: 'current' });
         setAddressQuery('');
         map?.panTo(coords);
         map?.setZoom(13);
@@ -640,13 +677,9 @@ function NearbyCareWorkspace({
       (err) => {
         setLocatingUser(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setLocationMessage(
-            'Location permission was declined. You can type your city, address, or ZIP code above instead.'
-          );
+          setLocationMessage(t.nearby.errPermissionDenied);
         } else {
-          setLocationMessage(
-            'Could not determine your location right now. Try entering your address or ZIP code above.'
-          );
+          setLocationMessage(t.nearby.errLocationFailed);
         }
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
@@ -662,7 +695,7 @@ function NearbyCareWorkspace({
       lng: center.lng(),
     };
     setSearchCenter(nextCenter);
-    setLocationLabel('Current map area');
+    setLocationLabelMode({ kind: 'mapArea' });
     setMapPanned(false);
   };
 
@@ -686,14 +719,15 @@ function NearbyCareWorkspace({
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-[#475569]">
-            Local Healthcare Locator
+            {t.nearby.eyebrow}
           </p>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] tracking-tight mt-0.5">
-            Nearby Pharmacies, Clinics & Hospitals
+            {t.nearby.title}
           </h1>
         </div>
         <p className="text-sm font-medium text-[#475569]">
-          Showing area: <span className="text-[#111C2D] font-semibold">{locationLabel}</span>
+          {t.nearby.showingArea}{' '}
+          <span className="text-[#111C2D] font-semibold">{locationLabel}</span>
         </p>
       </div>
 
@@ -703,10 +737,10 @@ function NearbyCareWorkspace({
           {/* Address / ZIP Search with Autocomplete */}
           <div className="relative flex-1">
             <label htmlFor="care-location-input" className="sr-only">
-              Search by city, ZIP code, or street address
+              {t.nearby.searchAria}
             </label>
             <Search
-              className="w-5 h-5 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              className="w-5 h-5 text-[#64748B] absolute start-4 top-1/2 -translate-y-1/2 pointer-events-none"
               aria-hidden="true"
             />
             <input
@@ -720,16 +754,16 @@ function NearbyCareWorkspace({
               onBlur={() => {
                 window.setTimeout(() => setShowSuggestions(false), 180);
               }}
-              placeholder="Enter city, ZIP code, or address..."
-              className="w-full min-h-[50px] pl-11 pr-4 rounded-2xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#64748B] focus:border-[#0E6B5E] focus:outline-none"
+              placeholder={t.nearby.searchPlaceholder}
+              className="w-full min-h-[50px] ps-11 pe-4 rounded-2xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#64748B] focus:border-[#0E6B5E] focus:outline-none"
               autoComplete="off"
             />
 
             {showSuggestions && suggestions.length > 0 && (
               <ul
                 role="listbox"
-                aria-label="Address suggestions"
-                className="absolute z-30 left-0 right-0 mt-1.5 bg-white rounded-2xl border border-[#CBD5E1] shadow-xl overflow-hidden divide-y divide-[#E5ECF3]"
+                aria-label={t.nearby.suggestionsAria}
+                className="absolute z-30 inset-x-0 mt-1.5 bg-white rounded-2xl border border-[#CBD5E1] shadow-xl overflow-hidden divide-y divide-[#E5ECF3]"
               >
                 {suggestions.map((item) => (
                   <li key={item.placeId} role="option" aria-selected={false}>
@@ -739,7 +773,7 @@ function NearbyCareWorkspace({
                         e.preventDefault();
                         void handleSelectSuggestion(item);
                       }}
-                      className="w-full min-h-[50px] px-4 py-2.5 text-left hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                      className="w-full min-h-[50px] px-4 py-2.5 text-start hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                     >
                       <span className="block font-semibold text-sm text-[#111C2D]">
                         {item.mainText}
@@ -764,7 +798,9 @@ function NearbyCareWorkspace({
             className="min-h-[50px] px-5 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] disabled:opacity-60 text-white font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
           >
             <LocateFixed className="w-5 h-5 shrink-0" />
-            <span>{locatingUser ? 'Locating...' : 'Use My Location'}</span>
+            <span>
+              {locatingUser ? t.nearby.locating : t.nearby.useMyLocation}
+            </span>
           </button>
         </div>
 
@@ -779,9 +815,9 @@ function NearbyCareWorkspace({
           <div
             className="grid grid-cols-2 sm:inline-flex items-center gap-1 p-1 rounded-2xl bg-[#E8EEF5]"
             role="group"
-            aria-label="Filter by healthcare facility type"
+            aria-label={t.nearby.filterTypeAria}
           >
-            {CATEGORY_OPTIONS.map((opt) => {
+            {categoryOptions.map((opt) => {
               const active = category === opt.id;
               return (
                 <button
@@ -813,15 +849,15 @@ function NearbyCareWorkspace({
               }`}
             >
               <Clock className="w-4 h-4 shrink-0" />
-              <span>Open Now</span>
+              <span>{t.nearby.openNow}</span>
             </button>
 
             <div
               className="inline-flex items-center p-1 rounded-xl bg-[#F1F5F9] border border-[#DCE3EC]"
               role="group"
-              aria-label="Search distance radius"
+              aria-label={t.nearby.radiusAria}
             >
-              {RADIUS_OPTIONS.map((rad) => {
+              {radiusOptions.map((rad) => {
                 const active = radiusMeters === rad.meters;
                 return (
                   <button
@@ -848,7 +884,10 @@ function NearbyCareWorkspace({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Interactive Google Map Container (explicit height to prevent CF2 collapse) */}
         <section className="surface-card lg:col-span-7 rounded-3xl bg-white border border-[#DCE3EC] overflow-hidden">
-          <div className="relative w-full h-[380px] sm:h-[440px] lg:h-[560px]">
+          <div
+            dir="ltr"
+            className="relative w-full h-[380px] sm:h-[440px] lg:h-[560px]"
+          >
             <GoogleMap
               id="steadydose-nearby-map"
               mapId="DEMO_MAP_ID"
@@ -866,12 +905,12 @@ function NearbyCareWorkspace({
               {userLocation && (
                 <AdvancedMarker
                   position={userLocation}
-                  title="Your current location"
+                  title={t.nearby.yourCurrentLocation}
                   zIndex={10}
                 >
                   <div
                     className="w-5 h-5 rounded-full bg-[#2563EB] border-[3px] border-white shadow-md"
-                    aria-label="Your location"
+                    aria-label={t.nearby.yourLocationAria}
                   />
                 </AdvancedMarker>
               )}
@@ -881,6 +920,7 @@ function NearbyCareWorkspace({
                 <CareMarker
                   key={place.id}
                   place={place}
+                  categoryLabel={categoryLabels[place.category]}
                   isSelected={selectedPlaceId === place.id}
                   isSavedPharmacy={
                     savedPharmacyName.trim().toLowerCase() ===
@@ -902,7 +942,7 @@ function NearbyCareWorkspace({
                   className="min-h-[44px] px-4 rounded-xl bg-[#111C2D] hover:bg-[#1E293B] text-white font-semibold text-sm shadow-lg flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <RefreshCw className="w-4 h-4 shrink-0" />
-                  <span>Search This Area</span>
+                  <span>{t.nearby.searchThisArea}</span>
                 </button>
               </div>
             )}
@@ -915,44 +955,44 @@ function NearbyCareWorkspace({
                 <span className="w-5 h-5 rounded-full bg-[#0E6B5E] text-white text-[10px] font-bold inline-flex items-center justify-center">
                   Rx
                 </span>
-                <span>Pharmacy</span>
+                <span>{t.nearby.labelPharmacy}</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-[#1D4ED8] text-white text-[10px] font-bold inline-flex items-center justify-center">
                   C
                 </span>
-                <span>Clinic</span>
+                <span>{t.nearby.labelClinic}</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-[#B91C1C] text-white text-[10px] font-bold inline-flex items-center justify-center">
                   H
                 </span>
-                <span>Hospital</span>
+                <span>{t.nearby.labelHospital}</span>
               </span>
             </div>
             <span className="text-xs text-[#64748B]">
-              For emergencies, dial 911 or local emergency services.
+              {t.nearby.emergencyNotice}
             </span>
           </div>
         </section>
 
         {/* Accessible Results List */}
         <section
-          aria-label="Nearby healthcare facilities list"
+          aria-label={t.nearby.listAria}
           className="surface-card lg:col-span-5 rounded-3xl bg-white border border-[#DCE3EC] overflow-hidden flex flex-col lg:max-h-[612px]"
         >
           <div className="px-5 py-4 border-b border-[#E5ECF3] flex items-center justify-between gap-2">
             <div>
               <h2 className="font-display text-lg font-bold text-[#111C2D]">
-                Nearby Places ({visiblePlaces.length})
+                {t.nearby.nearbyPlaces(visiblePlaces.length)}
               </h2>
               <p className="text-xs text-[#475569]">
-                Sorted by distance · Tap any place to view on map
+                {t.nearby.sortedByDistance}
               </p>
             </div>
             {isSearching && (
               <span className="text-xs font-semibold text-[#0E6B5E]">
-                Searching...
+                {t.nearby.searching}
               </span>
             )}
           </div>
@@ -970,29 +1010,30 @@ function NearbyCareWorkspace({
                   }
                   className="min-h-[44px] px-4 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-sm font-semibold text-[#111C2D] cursor-pointer"
                 >
-                  Try Again
+                  {t.nearby.tryAgain}
                 </button>
               </div>
             ) : isSearching && visiblePlaces.length === 0 ? (
               <div className="p-8 text-center text-sm text-[#475569]">
-                Finding nearby pharmacies, clinics, and hospitals...
+                {t.nearby.findingPlaces}
               </div>
             ) : visiblePlaces.length === 0 ? (
               <div className="p-8 text-center space-y-2">
                 <p className="font-display font-bold text-base text-[#111C2D]">
-                  No matching facilities found
+                  {t.nearby.noFacilitiesTitle}
                 </p>
                 <p className="text-sm text-[#475569]">
                   {openNowOnly
-                    ? 'Try turning off the "Open Now" filter or widening your search radius.'
-                    : 'Try expanding the distance radius or searching a nearby city.'}
+                    ? t.nearby.noFacilitiesOpenNow
+                    : t.nearby.noFacilitiesGeneral}
                 </p>
               </div>
             ) : (
               visiblePlaces.map((place) => {
-                const visual = CATEGORY_VISUALS[place.category];
+                const visual = CATEGORY_STYLES[place.category];
+                const categoryLabel = categoryLabels[place.category];
                 const isSelected = selectedPlaceId === place.id;
-                const distanceText = formatMiles(place.distanceMeters);
+                const distanceText = formatDistance(place.distanceMeters);
                 const isSaved =
                   savedPharmacyName.trim().toLowerCase() ===
                   place.displayName.trim().toLowerCase();
@@ -1007,19 +1048,22 @@ function NearbyCareWorkspace({
                     <button
                       type="button"
                       onClick={() => handleSelectPlace(place)}
-                      className="w-full text-left cursor-pointer space-y-1.5"
+                      className="w-full text-start cursor-pointer space-y-1.5"
                     >
                       <div className="flex items-baseline justify-between gap-2 text-xs">
                         <span className={`font-bold ${visual.textClass}`}>
-                          {visual.label}
+                          {categoryLabel}
                           {place.primaryTypeLabel &&
                           place.primaryTypeLabel.toLowerCase() !==
-                            visual.label.toLowerCase()
+                            categoryLabel.toLowerCase()
                             ? ` · ${place.primaryTypeLabel}`
                             : ''}
                         </span>
                         {distanceText && (
-                          <span className="font-mono font-semibold text-[#475569] tabular-nums shrink-0">
+                          <span
+                            dir="ltr"
+                            className="font-mono font-semibold text-[#475569] tabular-nums shrink-0"
+                          >
                             {distanceText}
                           </span>
                         )}
@@ -1044,11 +1088,14 @@ function NearbyCareWorkspace({
                                 : 'font-semibold text-[#B91C1C]'
                             }
                           >
-                            {place.isOpen ? 'Open now' : 'Closed now'}
+                            {place.isOpen ? t.nearby.openNow : t.nearby.closedNow}
                           </span>
                         )}
                         {place.rating !== null && (
-                          <span className="inline-flex items-center gap-1 tabular-nums">
+                          <span
+                            dir="ltr"
+                            className="inline-flex items-center gap-1 tabular-nums"
+                          >
                             {place.isOpen !== null && (
                               <span aria-hidden="true">·</span>
                             )}
@@ -1065,7 +1112,7 @@ function NearbyCareWorkspace({
                           </span>
                         )}
                         {place.wheelchairAccessible && (
-                          <span>· Wheelchair accessible entrance</span>
+                          <span>· {t.nearby.wheelchairAccessible}</span>
                         )}
                       </div>
 
@@ -1084,7 +1131,7 @@ function NearbyCareWorkspace({
                           className="min-h-[44px] px-3.5 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] text-sm font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
                         >
                           <Phone className="w-4 h-4 text-[#0E6B5E] shrink-0" />
-                          <span>Call</span>
+                          <span>{t.nearby.call}</span>
                         </a>
                       )}
 
@@ -1096,7 +1143,7 @@ function NearbyCareWorkspace({
                           className="min-h-[44px] px-3.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#111C2D] text-sm font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
                         >
                           <MapPin className="w-4 h-4 text-[#334155] shrink-0" />
-                          <span>Directions</span>
+                          <span>{t.nearby.directions}</span>
                           <ExternalLink className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
                         </a>
                       )}
@@ -1119,10 +1166,10 @@ function NearbyCareWorkspace({
                           {isSaved ? (
                             <>
                               <Check className="w-4 h-4 shrink-0" />
-                              <span>My Pharmacy</span>
+                              <span>{t.nearby.myPharmacy}</span>
                             </>
                           ) : (
-                            <span>Set as My Pharmacy</span>
+                            <span>{t.nearby.setAsMyPharmacy}</span>
                           )}
                         </button>
                       )}
@@ -1168,16 +1215,16 @@ export function NearbyCareView({
   savedPharmacyName,
   onSavePharmacy,
 }: NearbyCareViewProps) {
+  const { meta, t } = useLanguage();
+
   if (!MAPS_API_KEY) {
     return (
       <section className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-8 text-center space-y-3">
         <h1 className="font-display text-2xl font-bold text-[#111C2D]">
-          Nearby Pharmacies, Clinics & Hospitals
+          {t.nearby.title}
         </h1>
         <p className="text-base text-[#475569] max-w-lg mx-auto">
-          Google Maps Platform is not configured yet. Please complete Google Maps
-          setup to view live nearby pharmacies, clinics, and hospitals on an
-          interactive map.
+          {t.nearby.notConfiguredBody}
         </p>
       </section>
     );
@@ -1186,8 +1233,8 @@ export function NearbyCareView({
   return (
     <APIProvider
       apiKey={MAPS_API_KEY}
-      language="en"
-      region="US"
+      language={meta.mapsLanguage}
+      region={meta.mapsRegion}
       libraries={['places', 'marker', 'geometry']}
     >
       <NearbyCareWorkspace

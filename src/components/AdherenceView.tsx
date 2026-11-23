@@ -7,13 +7,11 @@ import {
   Printer,
   RotateCcw,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 import { DoseLogEntry, Medication, ScheduledDose } from '../types/medication';
 import {
   buildScheduledDosesForDate,
   computeAdherenceSummary,
-  formatHumanDate,
-  formatTime12h,
-  formatTimestamp12h,
   generateAdherenceCsv,
   generateDoctorReportText,
   parseDateKey,
@@ -38,6 +36,15 @@ export function AdherenceView({
   onMarkTaken,
   onUndoDose,
 }: AdherenceViewProps) {
+  const {
+    language,
+    locale,
+    t,
+    formatTime,
+    formatTimestamp,
+    formatDate,
+    getDisplayMed,
+  } = useLanguage();
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14);
   const [inspectedDateKey, setInspectedDateKey] = useState<string>(
     toDateKey(now)
@@ -63,7 +70,14 @@ export function AdherenceView({
   );
 
   const handleCopyReport = async () => {
-    const text = generateDoctorReportText(summary, rangeDays, todayDoses, now);
+    const text = generateDoctorReportText(
+      summary,
+      rangeDays,
+      todayDoses,
+      now,
+      language,
+      getDisplayMed
+    );
     try {
       await navigator.clipboard.writeText(text);
       setCopiedReport(true);
@@ -82,7 +96,14 @@ export function AdherenceView({
   };
 
   const handleDownloadCsv = () => {
-    const csvContent = generateAdherenceCsv(medications, logs, rangeDays, now);
+    const csvContent = generateAdherenceCsv(
+      medications,
+      logs,
+      rangeDays,
+      now,
+      language,
+      getDisplayMed
+    );
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -106,17 +127,17 @@ export function AdherenceView({
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-[#475569]">
-            Adherence & History
+            {t.adherence.eyebrow}
           </p>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] tracking-tight mt-0.5">
-            Your Consistency Over Time
+            {t.adherence.title}
           </h1>
         </div>
 
         <div
           className="inline-flex items-center p-1 rounded-2xl bg-[#E8EEF5] self-start sm:self-auto"
           role="group"
-          aria-label="Select time range"
+          aria-label={t.adherence.selectRangeAria}
         >
           {([7, 14, 30] as const).map((days) => {
             const active = rangeDays === days;
@@ -131,7 +152,7 @@ export function AdherenceView({
                     : 'text-[#475569] hover:text-[#111C2D]'
                 }`}
               >
-                {days} Days
+                {t.adherence.daysLabel(days)}
               </button>
             );
           })}
@@ -146,24 +167,26 @@ export function AdherenceView({
             size={112}
             strokeWidth={10}
             primaryLabel={`${summary.percentage}%`}
-            secondaryLabel={`${rangeDays}-day rate`}
+            secondaryLabel={t.adherence.dayRateLabel(rangeDays)}
             accentColor={summary.percentage >= 85 ? '#0E6B5E' : '#B45309'}
           />
           <div className="space-y-1.5 min-w-0">
             <h2 className="font-display text-xl font-bold text-[#111C2D]">
               {summary.percentage >= 90
-                ? 'Strong Routine'
+                ? t.adherence.strongRoutine
                 : summary.percentage >= 75
-                  ? 'Steady Progress'
-                  : 'Needs Attention'}
+                  ? t.adherence.steadyProgress
+                  : t.adherence.needsAttention}
             </h2>
             <p className="text-base text-[#475569] tabular-nums">
-              {summary.takenCount} of {summary.totalScheduled} scheduled doses
-              taken in the past {rangeDays} days.
+              {t.adherence.takenSummary(
+                summary.takenCount,
+                summary.totalScheduled,
+                rangeDays
+              )}
             </p>
             <p className="text-sm font-semibold text-[#0E6B5E] tabular-nums">
-              Current full-day streak: {summary.currentStreakDays} day
-              {summary.currentStreakDays === 1 ? '' : 's'}
+              {t.adherence.streakLabel(summary.currentStreakDays)}
             </p>
           </div>
         </div>
@@ -171,37 +194,40 @@ export function AdherenceView({
         <div className="lg:col-span-7 grid grid-cols-3 gap-3 sm:gap-4">
           <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-4 sm:p-5 flex flex-col justify-between">
             <span className="text-sm font-medium text-[#475569]">
-              Taken On Time
+              {t.adherence.takenOnTime}
             </span>
             <p className="font-display text-2xl sm:text-3xl font-bold text-[#0E6B5E] mt-2 tabular-nums">
               {summary.takenOnTimeCount}
             </p>
             <span className="text-xs text-[#64748B] mt-1">
-              Within 45 min
+              {t.adherence.within45Min}
             </span>
           </div>
 
           <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-4 sm:p-5 flex flex-col justify-between">
             <span className="text-sm font-medium text-[#475569]">
-              Taken Late
+              {t.adherence.takenLate}
             </span>
             <p className="font-display text-2xl sm:text-3xl font-bold text-[#B45309] mt-2 tabular-nums">
               {summary.takenLateCount}
             </p>
             <span className="text-xs text-[#64748B] mt-1">
-              Over 45 min late
+              {t.adherence.over45MinLate}
             </span>
           </div>
 
           <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-4 sm:p-5 flex flex-col justify-between">
             <span className="text-sm font-medium text-[#475569]">
-              Missed / Skipped
+              {t.adherence.missedSkipped}
             </span>
             <p className="font-display text-2xl sm:text-3xl font-bold text-[#B91C1C] mt-2 tabular-nums">
               {summary.missedCount + summary.skippedCount}
             </p>
             <span className="text-xs text-[#64748B] mt-1 tabular-nums">
-              {summary.skippedCount} skipped · {summary.missedCount} missed
+              {t.adherence.skippedMissedBreakdown(
+                summary.skippedCount,
+                summary.missedCount
+              )}
             </span>
           </div>
         </div>
@@ -224,18 +250,24 @@ export function AdherenceView({
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <h2 className="font-display text-lg font-bold text-[#111C2D]">
-                Daily Log Calendar
+                {t.adherence.dailyCalendarTitle}
               </h2>
               <p className="text-sm text-[#475569]">
-                Tap any day to see or update individual doses.
+                {t.adherence.dailyCalendarSubtitle}
               </p>
             </div>
             <div className="text-xs text-[#475569] flex items-center gap-3">
-              <span className="font-semibold text-[#0E6B5E]">All taken</span>
+              <span className="font-semibold text-[#0E6B5E]">
+                {t.adherence.legendAllTaken}
+              </span>
               <span aria-hidden="true">·</span>
-              <span className="font-semibold text-[#B45309]">Partial</span>
+              <span className="font-semibold text-[#B45309]">
+                {t.adherence.legendPartial}
+              </span>
               <span aria-hidden="true">·</span>
-              <span className="font-semibold text-[#B91C1C]">Missed</span>
+              <span className="font-semibold text-[#B91C1C]">
+                {t.adherence.legendMissed}
+              </span>
             </div>
           </div>
 
@@ -247,12 +279,16 @@ export function AdherenceView({
               const isNoneTaken = day.total > 0 && day.taken === 0;
               const statusLabel =
                 day.total === 0
-                  ? 'No doses'
+                  ? t.adherence.noDoses
                   : isAllTaken
-                    ? 'All'
+                    ? t.adherence.all
                     : isNoneTaken
-                      ? 'Missed'
-                      : 'Partial';
+                      ? t.adherence.missed
+                      : t.adherence.partial;
+              const shortDateLabel = dateObj.toLocaleDateString(locale, {
+                month: 'short',
+                day: 'numeric',
+              });
 
               return (
                 <button
@@ -268,19 +304,24 @@ export function AdherenceView({
                           ? 'bg-[#FEF2F2] border-[#FECACA] text-[#111C2D] hover:bg-[#FEE2E2]'
                           : 'bg-[#FFFBEB] border-[#FDE68A] text-[#111C2D] hover:bg-[#FEF3C7]'
                   }`}
-                  aria-label={`${dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })}: ${day.taken} of ${day.total} taken`}
+                  aria-label={t.adherence.dayAria(
+                    shortDateLabel,
+                    day.taken,
+                    day.total
+                  )}
                 >
                   <span
                     className={`text-[11px] font-medium ${
                       selected ? 'text-white/75' : 'text-[#475569]'
                     }`}
                   >
-                    {dateObj.toLocaleDateString([], { weekday: 'narrow' })}
+                    {dateObj.toLocaleDateString(locale, { weekday: 'narrow' })}
                   </span>
                   <span className="font-display text-base font-bold leading-tight tabular-nums">
                     {dateObj.getDate()}
                   </span>
                   <span
+                    dir={day.total > 0 ? 'ltr' : undefined}
                     className={`text-[11px] font-mono font-semibold mt-0.5 tabular-nums ${
                       selected
                         ? 'text-white/90'
@@ -303,17 +344,22 @@ export function AdherenceView({
         <section className="surface-card lg:col-span-5 rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-4">
           <div>
             <p className="text-xs font-semibold text-[#0E6B5E]">
-              Selected Day Details
+              {t.adherence.selectedDayDetails}
             </p>
             <h2 className="font-display text-lg font-bold text-[#111C2D] mt-0.5">
-              {formatHumanDate(inspectedDateKey, todayKey)}
+              {formatDate(inspectedDateKey, todayKey)}
             </h2>
           </div>
 
           <div className="divide-y divide-[#E5ECF3]">
             {inspectedDoses.map((dose) => {
+              const dispMed = getDisplayMed(dose.medication);
               const taken = dose.status === 'taken';
               const skipped = dose.status === 'skipped';
+              const skipReasonLabel = dose.log?.skipReason
+                ? t.skipReasons[dose.log.skipReason] || dose.log.skipReason
+                : t.adherence.noteFallback;
+
               return (
                 <div
                   key={dose.doseId}
@@ -327,11 +373,11 @@ export function AdherenceView({
                     />
                     <div className="min-w-0">
                       <p className="font-semibold text-base text-[#111C2D] truncate">
-                        {dose.medication.name} {dose.medication.dosage}
+                        {dispMed.name} {dispMed.dosage}
                       </p>
                       <p className="text-sm text-[#475569]">
-                        <span className="font-mono tabular-nums">
-                          {formatTime12h(dose.scheduledTime)}
+                        <span dir="ltr" className="font-mono tabular-nums inline-block">
+                          {formatTime(dose.scheduledTime)}
                         </span>
                         <span aria-hidden="true"> · </span>
                         <span
@@ -344,12 +390,14 @@ export function AdherenceView({
                           }
                         >
                           {taken
-                            ? `Taken ${formatTimestamp12h(dose.log?.takenAt)}`
+                            ? t.adherence.takenTime(
+                                formatTimestamp(dose.log?.takenAt)
+                              )
                             : skipped
-                              ? `Skipped (${dose.log?.skipReason || 'Note'})`
+                              ? t.adherence.skippedReason(skipReasonLabel)
                               : inspectedDateKey === todayKey && !dose.isOverdue
-                                ? 'Upcoming'
-                                : 'Missed'}
+                                ? t.adherence.upcoming
+                                : t.adherence.missedStatus}
                         </span>
                       </p>
                     </div>
@@ -362,7 +410,7 @@ export function AdherenceView({
                       className="min-h-[44px] px-3 rounded-xl border border-[#CBD5E1] text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC] flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Undo</span>
+                      <span>{t.today.undo}</span>
                     </button>
                   ) : (
                     <button
@@ -371,7 +419,7 @@ export function AdherenceView({
                       className="min-h-[44px] px-3.5 rounded-xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white text-sm font-semibold flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
                     >
                       <Check className="w-4 h-4" />
-                      <span>Take</span>
+                      <span>{t.today.take}</span>
                     </button>
                   )}
                 </div>
@@ -386,68 +434,77 @@ export function AdherenceView({
         <section className="surface-card lg:col-span-8 rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-4">
           <div>
             <h2 className="font-display text-lg font-bold text-[#111C2D]">
-              By Medication ({rangeDays} Days)
+              {t.adherence.byMedication(rangeDays)}
             </h2>
             <p className="text-sm text-[#475569]">
-              Sorted with medicines that may need an easier reminder time first.
+              {t.adherence.byMedicationSubtitle}
             </p>
           </div>
 
           <div className="divide-y divide-[#E5ECF3]">
-            {summary.perMedication.map((item) => (
-              <div
-                key={item.medication.id}
-                className="py-4 first:pt-1 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <PillVisual
-                    shape={item.medication.shape}
-                    color={item.medication.color}
-                    size="sm"
-                  />
-                  <div className="min-w-0">
-                    <p className="font-display font-bold text-base text-[#111C2D] truncate">
-                      {item.medication.name} {item.medication.dosage}
-                    </p>
-                    <p className="text-sm text-[#475569]">
-                      {item.medication.times.map(formatTime12h).join(', ')} ·{' '}
-                      {item.medication.purpose}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 sm:w-56 shrink-0">
-                  <div className="flex-1 h-2.5 rounded-full bg-[#E2E8F0] overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        item.rate >= 85 ? 'bg-[#0E6B5E]' : 'bg-[#B45309]'
-                      }`}
-                      style={{ width: `${item.rate}%` }}
+            {summary.perMedication.map((item) => {
+              const dispMed = getDisplayMed(item.medication);
+              return (
+                <div
+                  key={item.medication.id}
+                  className="py-4 first:pt-1 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <PillVisual
+                      shape={item.medication.shape}
+                      color={item.medication.color}
+                      size="sm"
                     />
+                    <div className="min-w-0">
+                      <p className="font-display font-bold text-base text-[#111C2D] truncate">
+                        {dispMed.name} {dispMed.dosage}
+                      </p>
+                      <p className="text-sm text-[#475569]">
+                        <span dir="ltr" className="inline-block">
+                          {item.medication.times.map(formatTime).join(', ')}
+                        </span>{' '}
+                        · {dispMed.purpose}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right w-20 shrink-0">
-                    <span className="font-mono font-bold text-base text-[#111C2D] tabular-nums">
-                      {item.rate}%
-                    </span>
-                    <span className="block font-mono text-xs text-[#64748B] tabular-nums">
-                      {item.taken}/{item.total}
-                    </span>
+
+                  <div className="flex items-center gap-4 sm:w-56 shrink-0">
+                    <div className="flex-1 h-2.5 rounded-full bg-[#E2E8F0] overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          item.rate >= 85 ? 'bg-[#0E6B5E]' : 'bg-[#B45309]'
+                        }`}
+                        style={{ width: `${item.rate}%` }}
+                      />
+                    </div>
+                    <div className="text-end w-20 shrink-0">
+                      <span
+                        dir="ltr"
+                        className="font-mono font-bold text-base text-[#111C2D] tabular-nums inline-block"
+                      >
+                        {item.rate}%
+                      </span>
+                      <span
+                        dir="ltr"
+                        className="block font-mono text-xs text-[#64748B] tabular-nums"
+                      >
+                        {item.taken}/{item.total}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
         <section className="surface-card lg:col-span-4 rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6 space-y-4">
           <div className="space-y-1">
             <h2 className="font-display text-lg font-bold text-[#111C2D]">
-              Share with Doctor or Family
+              {t.adherence.shareTitle}
             </h2>
             <p className="text-sm text-[#475569] leading-relaxed">
-              Export your {rangeDays}-day adherence log as a CSV spreadsheet for
-              your healthcare provider, copy a text summary, or print a clean
-              report.
+              {t.adherence.shareBody(rangeDays)}
             </p>
           </div>
 
@@ -460,12 +517,12 @@ export function AdherenceView({
               {downloadedCsv ? (
                 <>
                   <Check className="w-5 h-5 shrink-0" />
-                  <span>CSV Downloaded</span>
+                  <span>{t.adherence.csvDownloaded}</span>
                 </>
               ) : (
                 <>
                   <Download className="w-5 h-5 shrink-0" />
-                  <span>Download CSV ({rangeDays} Days)</span>
+                  <span>{t.adherence.downloadCsv(rangeDays)}</span>
                 </>
               )}
             </button>
@@ -478,12 +535,12 @@ export function AdherenceView({
               {copiedReport ? (
                 <>
                   <ClipboardCheck className="w-5 h-5 shrink-0 text-[#0E6B5E]" />
-                  <span>Summary Copied</span>
+                  <span>{t.adherence.summaryCopied}</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-5 h-5 shrink-0 text-[#334155]" />
-                  <span>Copy Doctor Summary</span>
+                  <span>{t.adherence.copyDoctorSummary}</span>
                 </>
               )}
             </button>
@@ -494,7 +551,7 @@ export function AdherenceView({
               className="w-full min-h-[50px] px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#111C2D] font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Printer className="w-5 h-5 shrink-0 text-[#334155]" />
-              <span>Print Report</span>
+              <span>{t.adherence.printReport}</span>
             </button>
           </div>
         </section>

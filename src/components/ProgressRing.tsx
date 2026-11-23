@@ -50,7 +50,10 @@ export function ProgressRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
-        <span className="font-display font-bold text-[#111C2D] text-xl leading-none tabular-nums">
+        <span
+          dir="ltr"
+          className="font-display font-bold text-[#111C2D] text-xl leading-none tabular-nums"
+        >
           {primaryLabel}
         </span>
         {secondaryLabel && (

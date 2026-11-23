@@ -26,6 +26,13 @@ import {
   createInitialMedications,
 } from './data/seedData';
 import {
+  LanguageProvider,
+  detectBrowserLanguage,
+  localizeMedicationForDisplay,
+} from './i18n/LanguageContext';
+import { LANGUAGE_META, TRANSLATIONS } from './i18n/translations';
+import {
+  AppLanguage,
   AppSettings,
   ChimeStyle,
   DoseLogEntry,
@@ -36,7 +43,7 @@ import {
 } from './types/medication';
 import {
   buildScheduledDosesForDate,
-  formatTime12h,
+  formatTimeForLanguage,
   toDateKey,
 } from './utils/schedule';
 import { playReminderChime, playTakenConfirmation } from './utils/sound';
@@ -66,16 +73,28 @@ function loadInitialState(): {
       ? JSON.parse(rawLogs)
       : createInitialDoseLogs(medications, now);
 
-    const settings: AppSettings = rawSettings
+    const parsedSettings = rawSettings ? JSON.parse(rawSettings) : null;
+    const validLanguage: AppLanguage =
+      parsedSettings?.language === 'en' ||
+      parsedSettings?.language === 'he' ||
+      parsedSettings?.language === 'pt'
+        ? parsedSettings.language
+        : detectBrowserLanguage();
+
+    const settings: AppSettings = parsedSettings
       ? {
           ...DEFAULT_SETTINGS,
-          ...JSON.parse(rawSettings),
+          ...parsedSettings,
+          language: validLanguage,
           caregiver: {
             ...DEFAULT_SETTINGS.caregiver,
-            ...(JSON.parse(rawSettings).caregiver || {}),
+            ...(parsedSettings.caregiver || {}),
           },
         }
-      : DEFAULT_SETTINGS;
+      : {
+          ...DEFAULT_SETTINGS,
+          language: detectBrowserLanguage(),
+        };
 
     return { medications, logs, settings };
   } catch {
@@ -83,7 +102,10 @@ function loadInitialState(): {
     return {
       medications,
       logs: createInitialDoseLogs(medications, now),
-      settings: DEFAULT_SETTINGS,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        language: detectBrowserLanguage(),
+      },
     };
   }
 }
@@ -181,13 +203,19 @@ export default function App() {
     }
   }, [settings]);
 
-  // Apply reading comfort preferences to <html>
+  const t = TRANSLATIONS[settings.language] ?? TRANSLATIONS.en;
+  const langMeta = LANGUAGE_META[settings.language] ?? LANGUAGE_META.en;
+
+  // Apply reading comfort preferences and language/RTL direction to <html>
   useEffect(() => {
     document.documentElement.dataset.textScale = settings.textScale;
     document.documentElement.dataset.contrast = settings.highContrast
       ? 'high'
       : 'normal';
-  }, [settings.textScale, settings.highContrast]);
+    document.documentElement.lang = settings.language;
+    document.documentElement.dir = langMeta.dir;
+    document.title = t.meta.appTitle;
+  }, [settings.textScale, settings.highContrast, settings.language, langMeta.dir, t.meta.appTitle]);
 
   // Live clock tick every 10 seconds to catch scheduled reminders promptly
   useEffect(() => {
@@ -241,10 +269,14 @@ export default function App() {
         'Notification' in window
       ) {
         try {
+          const dispMed = localizeMedicationForDisplay(
+            dose.medication,
+            settings.language
+          );
           new window.Notification(
-            `Time for ${dose.medication.name} ${dose.medication.dosage}`,
+            t.toasts.notificationTitle(dispMed.name, dispMed.dosage),
             {
-              body: `${dose.medication.quantityLabel} — ${dose.medication.instructions}`,
+              body: `${dispMed.quantityLabel} — ${dispMed.instructions}`,
               tag: dose.doseId,
             }
           );
@@ -260,6 +292,8 @@ export default function App() {
     activeReminder,
     settings.soundEnabled,
     settings.chimeStyle,
+    settings.language,
+    t,
     notificationPermission,
   ]);
 
@@ -293,9 +327,13 @@ export default function App() {
         playTakenConfirmation();
       }
       setActiveReminder(null);
-      showToast(`Recorded ${dose.medication.name} as taken.`);
+      const dispMed = localizeMedicationForDisplay(
+        dose.medication,
+        settings.language
+      );
+      showToast(t.toasts.taken(dispMed.name));
     },
-    [logs, settings.soundEnabled, showToast]
+    [logs, settings.soundEnabled, settings.language, t, showToast]
   );
 
   const handleUndoDose = useCallback(
@@ -317,9 +355,18 @@ export default function App() {
         );
       }
 
-      showToast(`Reset ${dose.medication.name} for ${formatTime12h(dose.scheduledTime)}.`);
+      const dispMed = localizeMedicationForDisplay(
+        dose.medication,
+        settings.language
+      );
+      showToast(
+        t.toasts.reset(
+          dispMed.name,
+          formatTimeForLanguage(dose.scheduledTime, settings.language)
+        )
+      );
     },
-    [logs, showToast]
+    [logs, settings.language, t, showToast]
   );
 
   const handleSnoozeDose = useCallback(
@@ -339,11 +386,13 @@ export default function App() {
         },
       }));
       setActiveReminder(null);
-      showToast(
-        `Snoozed ${dose.medication.name} for ${settings.snoozeMinutes} minutes.`
+      const dispMed = localizeMedicationForDisplay(
+        dose.medication,
+        settings.language
       );
+      showToast(t.toasts.snoozed(dispMed.name, settings.snoozeMinutes));
     },
-    [settings.snoozeMinutes, showToast]
+    [settings.snoozeMinutes, settings.language, t, showToast]
   );
 
   const handleSkipDose = useCallback(
@@ -360,9 +409,13 @@ export default function App() {
         },
       }));
       setActiveReminder(null);
-      showToast(`Marked ${dose.medication.name} as skipped.`);
+      const dispMed = localizeMedicationForDisplay(
+        dose.medication,
+        settings.language
+      );
+      showToast(t.toasts.skipped(dispMed.name));
     },
-    [showToast]
+    [settings.language, t, showToast]
   );
 
   const handleSaveMedication = useCallback(
@@ -371,7 +424,7 @@ export default function App() {
         setMedications((prev) =>
           prev.map((m) => (m.id === existingId ? { ...m, ...data } : m))
         );
-        showToast(`Updated ${data.name}.`);
+        showToast(t.toasts.updated(data.name));
       } else {
         const newMed: Medication = {
           ...data,
@@ -379,11 +432,11 @@ export default function App() {
           createdAt: toDateKey(new Date()),
         };
         setMedications((prev) => [...prev, newMed]);
-        showToast(`Added ${data.name} to your schedule.`);
+        showToast(t.toasts.added(data.name));
       }
       setFormModalState({ open: false, editing: null });
     },
-    [showToast]
+    [t, showToast]
   );
 
   const handleToggleActiveMed = useCallback(
@@ -392,14 +445,17 @@ export default function App() {
         prev.map((m) => {
           if (m.id !== medId) return m;
           const nextActive = !m.active;
+          const dispMed = localizeMedicationForDisplay(m, settings.language);
           showToast(
-            nextActive ? `Resumed ${m.name}.` : `Paused reminders for ${m.name}.`
+            nextActive
+              ? t.toasts.resumed(dispMed.name)
+              : t.toasts.paused(dispMed.name)
           );
           return { ...m, active: nextActive };
         })
       );
     },
-    [showToast]
+    [settings.language, t, showToast]
   );
 
   const handleDeleteMed = useCallback(
@@ -407,10 +463,11 @@ export default function App() {
       const target = medications.find((m) => m.id === medId);
       setMedications((prev) => prev.filter((m) => m.id !== medId));
       if (target) {
-        showToast(`Removed ${target.name}.`);
+        const dispMed = localizeMedicationForDisplay(target, settings.language);
+        showToast(t.toasts.removed(dispMed.name));
       }
     },
-    [medications, showToast]
+    [medications, settings.language, t, showToast]
   );
 
   const handleRefillMed = useCallback(
@@ -418,16 +475,21 @@ export default function App() {
       setMedications((prev) =>
         prev.map((m) => {
           if (m.id !== medId) return m;
-          showToast(`Added ${amount} pills to ${m.name}.`);
+          const dispMed = localizeMedicationForDisplay(m, settings.language);
+          showToast(t.toasts.refilled(amount, dispMed.name));
           return { ...m, remainingPills: m.remainingPills + amount };
         })
       );
     },
-    [showToast]
+    [settings.language, t, showToast]
   );
 
   const handleUpdateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleChangeLanguage = useCallback((lang: AppLanguage) => {
+    setSettings((prev) => ({ ...prev, language: lang }));
   }, []);
 
   const handleRequestNotificationPermission = useCallback(async () => {
@@ -440,12 +502,12 @@ export default function App() {
       setNotificationPermission(result);
       if (result === 'granted') {
         handleUpdateSettings({ browserNotificationsEnabled: true });
-        showToast('Device medication reminders enabled.');
+        showToast(t.toasts.notificationsEnabled);
       }
     } catch {
       // ignore
     }
-  }, [handleUpdateSettings, showToast]);
+  }, [handleUpdateSettings, t, showToast]);
 
   const handleTriggerTestReminder = useCallback(() => {
     const candidate =
@@ -453,7 +515,7 @@ export default function App() {
       todayDoses[0];
 
     if (!candidate) {
-      showToast('Add a medication first to preview a reminder.');
+      showToast(t.toasts.addMedFirst);
       return;
     }
 
@@ -461,7 +523,7 @@ export default function App() {
       playReminderChime(settings.chimeStyle);
     }
     setActiveReminder({ dose: candidate, isPreview: true });
-  }, [todayDoses, settings.soundEnabled, settings.chimeStyle, showToast]);
+  }, [todayDoses, settings.soundEnabled, settings.chimeStyle, t, showToast]);
 
   const handleTestSound = useCallback((style: ChimeStyle) => {
     playReminderChime(style);
@@ -477,9 +539,9 @@ export default function App() {
           pharmacyPhone: pharmacyPhone || prev.caregiver.pharmacyPhone,
         },
       }));
-      showToast(`Saved ${pharmacyName} as your pharmacy.`);
+      showToast(t.toasts.savedPharmacy(pharmacyName));
     },
-    [showToast]
+    [t, showToast]
   );
 
   const navItems: Array<{
@@ -488,43 +550,60 @@ export default function App() {
     shortLabel: string;
     icon: typeof CalendarCheck;
   }> = [
-    { id: 'today', label: 'Today', shortLabel: 'Today', icon: CalendarCheck },
+    {
+      id: 'today',
+      label: t.nav.today,
+      shortLabel: t.nav.shortToday,
+      icon: CalendarCheck,
+    },
     {
       id: 'adherence',
-      label: 'Adherence',
-      shortLabel: 'History',
+      label: t.nav.adherence,
+      shortLabel: t.nav.shortAdherence,
       icon: ClipboardList,
     },
     {
       id: 'medications',
-      label: 'Medications',
-      shortLabel: 'Medicines',
+      label: t.nav.medications,
+      shortLabel: t.nav.shortMedications,
       icon: Pill,
     },
     {
       id: 'nearby',
-      label: 'Nearby Care',
-      shortLabel: 'Nearby',
+      label: t.nav.nearby,
+      shortLabel: t.nav.shortNearby,
       icon: MapPin,
     },
-    { id: 'alerts', label: 'Care & Alerts', shortLabel: 'Alerts', icon: Bell },
+    {
+      id: 'alerts',
+      label: t.nav.alerts,
+      shortLabel: t.nav.shortAlerts,
+      icon: Bell,
+    },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F5F7FA] text-[#111C2D]">
+    <LanguageProvider
+      language={settings.language}
+      onChangeLanguage={handleChangeLanguage}
+    >
+    <div
+      dir={langMeta.dir}
+      className="min-h-screen flex flex-col bg-[#F5F7FA] text-[#111C2D]"
+    >
       {mapsQuotaExceeded && (
         <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm print:hidden">
           <span>
-            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            {t.mapsQuota.prefix}{' '}
             <a
               href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
               target="_blank"
               rel="noopener noreferrer"
               className="underline font-semibold text-amber-950 hover:text-amber-800"
             >
-              maps developer site
+              {t.mapsQuota.linkText}
             </a>{' '}
-            for instructions to update your account.
+            {t.mapsQuota.suffix}
           </span>
         </div>
       )}
@@ -549,7 +628,7 @@ export default function App() {
           {/* Zone 2: 5 clean single-line text links (Desktop) */}
           <nav
             className="hidden md:flex items-center gap-6"
-            aria-label="Main navigation"
+            aria-label={t.nav.mainNavAria}
           >
             {navItems.map((item) => {
               const active = activeTab === item.id;
@@ -578,7 +657,7 @@ export default function App() {
               className="min-h-[44px] px-4 rounded-xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white font-display font-semibold text-sm flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <Plus className="w-4 h-4 shrink-0" strokeWidth={2.5} />
-              <span>Add Medicine</span>
+              <span>{t.nav.addMedicine}</span>
             </button>
           </div>
         </div>
@@ -653,7 +732,7 @@ export default function App() {
 
       {/* Fixed Mobile Bottom Navigation Bar (Natural Thumb Zone, 5 destinations) */}
       <nav
-        aria-label="Mobile navigation"
+        aria-label={t.nav.mobileNavAria}
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#DCE3EC] pb-safe print:hidden"
       >
         <div className="grid grid-cols-5 h-16">
@@ -692,7 +771,7 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed z-40 bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-sm bg-[#111C2D] text-white px-5 py-3.5 rounded-2xl shadow-lg text-sm font-medium text-center md:text-left print:hidden"
+          className="fixed z-40 bottom-20 md:bottom-6 inset-x-4 md:start-auto md:end-6 md:max-w-sm bg-[#111C2D] text-white px-5 py-3.5 rounded-2xl shadow-lg text-sm font-medium text-center md:text-start print:hidden"
         >
           {toastMessage}
         </div>
@@ -721,5 +800,6 @@ export default function App() {
         />
       )}
     </div>
+    </LanguageProvider>
   );
 }

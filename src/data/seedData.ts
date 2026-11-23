@@ -2,6 +2,7 @@ import { AppSettings, DoseLogEntry, Medication } from '../types/medication';
 import { makeDoseId, minutesFromTime, shiftDateKey, toDateKey } from '../utils/schedule';
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  language: 'en',
   soundEnabled: true,
   chimeStyle: 'bell',
   snoozeMinutes: 10,

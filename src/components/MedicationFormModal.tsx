@@ -1,15 +1,8 @@
 import { useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 import { Medication, PillColor, PillShape } from '../types/medication';
-import { formatTime12h } from '../utils/schedule';
 import { PILL_COLOR_STYLES, PILL_SHAPES, PillVisual } from './PillVisual';
-
-const PRESET_TIMES: Array<{ label: string; time: string }> = [
-  { label: 'Morning', time: '08:00' },
-  { label: 'Midday', time: '12:30' },
-  { label: 'Evening', time: '18:30' },
-  { label: 'Bedtime', time: '21:00' },
-];
 
 const PILL_COLOR_KEYS: PillColor[] = [
   'white',
@@ -31,14 +24,26 @@ export function MedicationFormModal({
   onSave,
   onClose,
 }: MedicationFormModalProps) {
-  const [name, setName] = useState(initialMedication?.name ?? '');
-  const [dosage, setDosage] = useState(initialMedication?.dosage ?? '');
+  const { t, formatTime, getDisplayMed } = useLanguage();
+  const displayInitial = initialMedication
+    ? getDisplayMed(initialMedication)
+    : null;
+
+  const presetTimes: Array<{ label: string; time: string }> = [
+    { label: t.form.presetMorning, time: '08:00' },
+    { label: t.form.presetMidday, time: '12:30' },
+    { label: t.form.presetEvening, time: '18:30' },
+    { label: t.form.presetBedtime, time: '21:00' },
+  ];
+
+  const [name, setName] = useState(displayInitial?.name ?? '');
+  const [dosage, setDosage] = useState(displayInitial?.dosage ?? '');
   const [quantityLabel, setQuantityLabel] = useState(
-    initialMedication?.quantityLabel ?? '1 tablet'
+    displayInitial?.quantityLabel ?? t.form.defaultQty
   );
-  const [purpose, setPurpose] = useState(initialMedication?.purpose ?? '');
+  const [purpose, setPurpose] = useState(displayInitial?.purpose ?? '');
   const [instructions, setInstructions] = useState(
-    initialMedication?.instructions ?? 'Take with a full glass of water'
+    displayInitial?.instructions ?? t.form.defaultInstructions
   );
   const [times, setTimes] = useState<string[]>(
     initialMedication?.times?.length ? [...initialMedication.times] : ['08:00']
@@ -62,7 +67,7 @@ export function MedicationFormModal({
     setError('');
     if (times.includes(timeVal)) {
       if (times.length === 1) return; // keep at least one time
-      setTimes(times.filter((t) => t !== timeVal));
+      setTimes(times.filter((timeItem) => timeItem !== timeVal));
     } else {
       setTimes([...times, timeVal].sort());
     }
@@ -78,29 +83,28 @@ export function MedicationFormModal({
 
   const removeTime = (timeVal: string) => {
     if (times.length <= 1) return;
-    setTimes(times.filter((t) => t !== timeVal));
+    setTimes(times.filter((timeItem) => timeItem !== timeVal));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('Please enter the medicine name.');
+      setError(t.form.errNameRequired);
       return;
     }
     if (times.length === 0) {
-      setError('Please choose at least one reminder time.');
+      setError(t.form.errTimeRequired);
       return;
     }
 
     onSave(
       {
         name: trimmedName,
-        dosage: dosage.trim() || 'Standard dose',
-        quantityLabel: quantityLabel.trim() || '1 tablet',
-        purpose: purpose.trim() || 'Daily health',
-        instructions:
-          instructions.trim() || 'Take with a full glass of water',
+        dosage: dosage.trim() || t.form.defaultDosage,
+        quantityLabel: quantityLabel.trim() || t.form.defaultQty,
+        purpose: purpose.trim() || t.form.defaultPurpose,
+        instructions: instructions.trim() || t.form.defaultInstructions,
         times: [...times].sort(),
         shape,
         color,
@@ -130,13 +134,13 @@ export function MedicationFormModal({
             id="med-form-title"
             className="font-display text-xl font-bold text-[#111C2D]"
           >
-            {initialMedication ? 'Edit Medicine' : 'Add a New Medicine'}
+            {initialMedication ? t.form.editTitle : t.form.addTitle}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#475569] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
-            aria-label="Close form"
+            aria-label={t.form.closeAria}
           >
             <X className="w-5 h-5" />
           </button>
@@ -157,14 +161,16 @@ export function MedicationFormModal({
             <PillVisual shape={shape} color={color} size="md" />
             <div className="min-w-0">
               <p className="font-display font-bold text-lg text-[#111C2D] truncate">
-                {name.trim() || 'Medicine Name'}{' '}
+                {name.trim() || t.form.previewFallbackName}{' '}
                 <span className="font-normal text-[#475569]">
                   {dosage.trim() || '10 mg'}
                 </span>
               </p>
               <p className="text-sm text-[#475569] mt-0.5 truncate">
-                {quantityLabel || '1 tablet'} ·{' '}
-                {times.map(formatTime12h).join(', ')}
+                {quantityLabel || t.form.defaultQty} ·{' '}
+                <span dir="ltr" className="inline-block">
+                  {times.map(formatTime).join(', ')}
+                </span>
               </p>
             </div>
           </div>
@@ -176,14 +182,14 @@ export function MedicationFormModal({
                 htmlFor="med-name"
                 className="block text-sm font-semibold text-[#111C2D] mb-1.5"
               >
-                Medicine Name
+                {t.form.medicineName}
               </label>
               <input
                 id="med-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Lisinopril"
+                placeholder={t.form.medicineNamePlaceholder}
                 className="w-full min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#94A3B8] focus:border-[#0E6B5E] focus:outline-none"
                 required
               />
@@ -194,14 +200,14 @@ export function MedicationFormModal({
                 htmlFor="med-dosage"
                 className="block text-sm font-semibold text-[#111C2D] mb-1.5"
               >
-                Strength / Dosage
+                {t.form.strengthDosage}
               </label>
               <input
                 id="med-dosage"
                 type="text"
                 value={dosage}
                 onChange={(e) => setDosage(e.target.value)}
-                placeholder="e.g., 10 mg"
+                placeholder={t.form.strengthPlaceholder}
                 className="w-full min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#94A3B8] focus:border-[#0E6B5E] focus:outline-none"
               />
             </div>
@@ -213,14 +219,14 @@ export function MedicationFormModal({
                 htmlFor="med-qty"
                 className="block text-sm font-semibold text-[#111C2D] mb-1.5"
               >
-                Amount per Dose
+                {t.form.amountPerDose}
               </label>
               <input
                 id="med-qty"
                 type="text"
                 value={quantityLabel}
                 onChange={(e) => setQuantityLabel(e.target.value)}
-                placeholder="e.g., 1 tablet"
+                placeholder={t.form.amountPlaceholder}
                 className="w-full min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#94A3B8] focus:border-[#0E6B5E] focus:outline-none"
               />
             </div>
@@ -230,14 +236,14 @@ export function MedicationFormModal({
                 htmlFor="med-purpose"
                 className="block text-sm font-semibold text-[#111C2D] mb-1.5"
               >
-                What It Helps With
+                {t.form.whatItHelpsWith}
               </label>
               <input
                 id="med-purpose"
                 type="text"
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
-                placeholder="e.g., Blood pressure"
+                placeholder={t.form.purposePlaceholder}
                 className="w-full min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#94A3B8] focus:border-[#0E6B5E] focus:outline-none"
               />
             </div>
@@ -248,14 +254,14 @@ export function MedicationFormModal({
               htmlFor="med-instructions"
               className="block text-sm font-semibold text-[#111C2D] mb-1.5"
             >
-              Instructions
+              {t.form.instructionsLabel}
             </label>
             <input
               id="med-instructions"
               type="text"
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              placeholder="e.g., Take with breakfast and water"
+              placeholder={t.form.instructionsPlaceholder}
               className="w-full min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white text-base text-[#111C2D] placeholder:text-[#94A3B8] focus:border-[#0E6B5E] focus:outline-none"
             />
           </div>
@@ -263,10 +269,10 @@ export function MedicationFormModal({
           {/* Reminder Times */}
           <div className="space-y-3">
             <p className="text-sm font-semibold text-[#111C2D]">
-              Reminder Times
+              {t.form.reminderTimesLabel}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {PRESET_TIMES.map((preset) => {
+              {presetTimes.map((preset) => {
                 const active = times.includes(preset.time);
                 return (
                   <button
@@ -283,11 +289,12 @@ export function MedicationFormModal({
                       {preset.label}
                     </span>
                     <span
+                      dir="ltr"
                       className={`block font-mono text-xs mt-0.5 tabular-nums ${
                         active ? 'text-white/90' : 'text-[#475569]'
                       }`}
                     >
-                      {formatTime12h(preset.time)}
+                      {formatTime(preset.time)}
                     </span>
                   </button>
                 );
@@ -297,9 +304,10 @@ export function MedicationFormModal({
             <div className="flex items-center gap-2 pt-1">
               <input
                 type="time"
+                dir="ltr"
                 value={customTime}
                 onChange={(e) => setCustomTime(e.target.value)}
-                aria-label="Custom reminder time"
+                aria-label={t.form.customTimeAria}
                 className="min-h-[48px] px-3.5 rounded-xl border border-[#CBD5E1] bg-white font-mono text-base text-[#111C2D] tabular-nums"
               />
               <button
@@ -308,24 +316,24 @@ export function MedicationFormModal({
                 className="min-h-[48px] px-4 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-sm flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Custom Time</span>
+                <span>{t.form.addCustomTime}</span>
               </button>
             </div>
 
             {times.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-1">
-                {times.map((t) => (
+                {times.map((timeVal) => (
                   <div
-                    key={t}
-                    className="inline-flex items-center gap-2 pl-3.5 pr-1.5 py-1.5 rounded-xl bg-[#F1F5F9] border border-[#DCE3EC] text-sm font-mono font-medium text-[#111C2D] tabular-nums"
+                    key={timeVal}
+                    className="inline-flex items-center gap-2 ps-3.5 pe-1.5 py-1.5 rounded-xl bg-[#F1F5F9] border border-[#DCE3EC] text-sm font-mono font-medium text-[#111C2D] tabular-nums"
                   >
-                    <span>{formatTime12h(t)}</span>
+                    <span dir="ltr">{formatTime(timeVal)}</span>
                     {times.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => removeTime(t)}
+                        onClick={() => removeTime(timeVal)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#B91C1C] transition-colors cursor-pointer"
-                        aria-label={`Remove ${formatTime12h(t)}`}
+                        aria-label={t.form.removeTimeAria(formatTime(timeVal))}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -340,7 +348,7 @@ export function MedicationFormModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <p className="text-sm font-semibold text-[#111C2D] mb-2">
-                Pill Shape
+                {t.form.pillShape}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {PILL_SHAPES.map((item) => {
@@ -356,7 +364,7 @@ export function MedicationFormModal({
                           : 'bg-white border-[#CBD5E1] text-[#111C2D] hover:bg-[#F8FAFC]'
                       }`}
                     >
-                      {item.label}
+                      {t.pills.shapes[item.value]}
                     </button>
                   );
                 })}
@@ -365,7 +373,7 @@ export function MedicationFormModal({
 
             <div>
               <p className="text-sm font-semibold text-[#111C2D] mb-2">
-                Pill Color
+                {t.form.pillColor}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {PILL_COLOR_KEYS.map((key) => {
@@ -390,7 +398,7 @@ export function MedicationFormModal({
                         }}
                         aria-hidden="true"
                       />
-                      <span className="truncate">{style.label.split(' ')[0]}</span>
+                      <span className="truncate">{t.pills.colors[key].short}</span>
                     </button>
                   );
                 })}
@@ -405,11 +413,12 @@ export function MedicationFormModal({
                 htmlFor="med-remaining"
                 className="block text-sm font-semibold text-[#111C2D] mb-1.5"
               >
-                Pills on Hand
+                {t.form.pillsOnHand}
               </label>
               <input
                 id="med-remaining"
                 type="number"
+                dir="ltr"
                 min={0}
                 max={999}
                 value={remainingPills}
@@ -423,11 +432,12 @@ export function MedicationFormModal({
                 htmlFor="med-threshold"
                 className="block text-sm font-semibold text-[#111C2D] mb-1.5"
               >
-                Refill Alert Below
+                {t.form.refillAlertBelow}
               </label>
               <input
                 id="med-threshold"
                 type="number"
+                dir="ltr"
                 min={1}
                 max={90}
                 value={refillThreshold}
@@ -443,13 +453,13 @@ export function MedicationFormModal({
               onClick={onClose}
               className="min-h-[52px] px-6 rounded-2xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#334155] font-semibold text-base transition-colors cursor-pointer"
             >
-              Cancel
+              {t.form.cancel}
             </button>
             <button
               type="submit"
               className="min-h-[52px] px-7 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white font-display font-semibold text-base transition-colors cursor-pointer"
             >
-              {initialMedication ? 'Save Changes' : 'Save Medicine'}
+              {initialMedication ? t.form.saveChanges : t.form.saveMedicine}
             </button>
           </div>
         </form>

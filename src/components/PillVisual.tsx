@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import { PillColor, PillShape } from '../types/medication';
 
 export const PILL_COLOR_STYLES: Record<
@@ -74,7 +75,10 @@ export function PillVisual({
   size = 'md',
   className = '',
 }: PillVisualProps) {
+  const { t } = useLanguage();
   const palette = PILL_COLOR_STYLES[color];
+  const colorLabel = t.pills.colors[color].label;
+  const shapeLabel = t.pills.shapes[shape];
   const dimensions =
     size === 'sm'
       ? 'w-11 h-11 rounded-xl'
@@ -87,7 +91,7 @@ export function PillVisual({
     <div
       className={`shrink-0 flex items-center justify-center border border-[#DCE3EC] ${dimensions} ${className}`}
       style={{ backgroundColor: palette.containerBg }}
-      aria-label={`${palette.label} ${shape} pill`}
+      aria-label={t.pills.pillAria(colorLabel, shapeLabel)}
     >
       <svg
         width={svgSize}

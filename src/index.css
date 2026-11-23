@@ -12,6 +12,11 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  html[lang="he"] {
+    --font-display: "Heebo", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --font-sans: "Heebo", "Public Sans", system-ui, -apple-system, sans-serif;
+  }
+
   h1, h2, h3, h4 {
     font-family: var(--font-display);
     text-wrap: balance;

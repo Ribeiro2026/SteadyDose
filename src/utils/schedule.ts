@@ -1,4 +1,11 @@
-import { DoseLogEntry, Medication, ScheduledDose, TimePeriod } from '../types/medication';
+import {
+  AppLanguage,
+  DoseLogEntry,
+  Medication,
+  ScheduledDose,
+  TimePeriod,
+} from '../types/medication';
+import { LANGUAGE_META, TRANSLATIONS } from '../i18n/translations';
 
 export function toDateKey(date: Date): string {
   const year = date.getFullYear();
@@ -31,6 +38,20 @@ export function formatTime12h(timeStr: string): string {
   return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
 }
 
+export function formatTimeForLanguage(
+  timeStr: string,
+  language: AppLanguage = 'en'
+): string {
+  const meta = LANGUAGE_META[language] ?? LANGUAGE_META.en;
+  if (!meta.use24Hour) {
+    return formatTime12h(timeStr);
+  }
+  const [hRaw, mRaw] = timeStr.split(':').map(Number);
+  const h = hRaw ?? 0;
+  const m = mRaw ?? 0;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 export function formatTimestamp12h(isoString?: string): string {
   if (!isoString) return '';
   const date = new Date(isoString);
@@ -38,15 +59,35 @@ export function formatTimestamp12h(isoString?: string): string {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-export function formatHumanDate(dateKey: string, todayKey: string): string {
+export function formatTimestampForLanguage(
+  isoString?: string,
+  language: AppLanguage = 'en'
+): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return '';
+  const meta = LANGUAGE_META[language] ?? LANGUAGE_META.en;
+  return date.toLocaleTimeString(meta.locale, {
+    hour: meta.use24Hour ? '2-digit' : 'numeric',
+    minute: '2-digit',
+    hour12: !meta.use24Hour,
+  });
+}
+
+export function formatHumanDate(
+  dateKey: string,
+  todayKey: string,
+  language: AppLanguage = 'en'
+): string {
+  const locale = (LANGUAGE_META[language] ?? LANGUAGE_META.en).locale;
   if (dateKey === todayKey) {
-    return parseDateKey(dateKey).toLocaleDateString([], {
+    return parseDateKey(dateKey).toLocaleDateString(locale, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
     });
   }
-  return parseDateKey(dateKey).toLocaleDateString([], {
+  return parseDateKey(dateKey).toLocaleDateString(locale, {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
@@ -301,44 +342,69 @@ export function generateDoctorReportText(
   summary: AdherenceSummary,
   days: number,
   todayDoses: ScheduledDose[],
-  now: Date
+  now: Date,
+  language: AppLanguage = 'en',
+  localizeMed?: (med: Medication) => Medication
 ): string {
-  const dateLabel = now.toLocaleDateString([], {
+  const t = TRANSLATIONS[language] ?? TRANSLATIONS.en;
+  const locale = (LANGUAGE_META[language] ?? LANGUAGE_META.en).locale;
+  const formatTime = (time: string) => formatTimeForLanguage(time, language);
+  const formatTs = (iso?: string) => formatTimestampForLanguage(iso, language);
+
+  const dateLabel = now.toLocaleDateString(locale, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
   });
   const lines: string[] = [
-    `SteadyDose Medication Adherence Summary`,
-    `Generated: ${dateLabel}`,
-    `Period: Last ${days} days`,
+    t.report.title,
+    t.report.generated(dateLabel),
+    t.report.period(days),
     ``,
-    `Overall Adherence: ${summary.percentage}% (${summary.takenCount} of ${summary.totalScheduled} doses taken)`,
-    `On-time doses: ${summary.takenOnTimeCount} · Late doses: ${summary.takenLateCount} · Skipped: ${summary.skippedCount} · Missed: ${summary.missedCount}`,
-    `Current full-day streak: ${summary.currentStreakDays} day(s)`,
+    t.report.overall(summary.percentage, summary.takenCount, summary.totalScheduled),
+    t.report.breakdown(
+      summary.takenOnTimeCount,
+      summary.takenLateCount,
+      summary.skippedCount,
+      summary.missedCount
+    ),
+    t.report.streak(summary.currentStreakDays),
     ``,
-    `Medication Breakdown:`,
+    t.report.medBreakdown,
   ];
 
   for (const item of summary.perMedication) {
-    const timesText = item.medication.times.map(formatTime12h).join(', ');
+    const med = localizeMed ? localizeMed(item.medication) : item.medication;
+    const timesText = med.times.map(formatTime).join(', ');
     lines.push(
-      `- ${item.medication.name} ${item.medication.dosage} (${timesText}): ${item.rate}% (${item.taken}/${item.total} taken) · ${item.medication.remainingPills} pills remaining`
+      t.report.medLine(
+        med.name,
+        med.dosage,
+        timesText,
+        item.rate,
+        item.taken,
+        item.total,
+        med.remainingPills
+      )
     );
   }
 
-  lines.push(``, `Today's Status:`);
+  lines.push(``, t.report.todayStatus);
   for (const dose of todayDoses) {
+    const med = localizeMed ? localizeMed(dose.medication) : dose.medication;
+    const skipLabel = dose.log?.skipReason
+      ? t.skipReasons[dose.log.skipReason] || dose.log.skipReason
+      : t.report.noReason;
     const statusText =
       dose.status === 'taken'
-        ? `Taken at ${formatTimestamp12h(dose.log?.takenAt)}`
+        ? t.report.takenAt(formatTs(dose.log?.takenAt))
         : dose.status === 'skipped'
-          ? `Skipped (${dose.log?.skipReason || 'No reason'})`
+          ? t.report.skipped(skipLabel)
           : dose.isOverdue
-            ? 'Overdue'
-            : 'Upcoming';
+            ? t.report.overdue
+            : t.report.upcoming;
     lines.push(
-      `- ${formatTime12h(dose.scheduledTime)} · ${dose.medication.name} ${dose.medication.dosage}: ${statusText}`
+      `- ${formatTime(dose.scheduledTime)} · ${med.name} ${med.dosage}: ${statusText}`
     );
   }
 
@@ -359,24 +425,18 @@ export function generateAdherenceCsv(
   medications: Medication[],
   logs: Record<string, DoseLogEntry>,
   days: number,
-  now: Date
+  now: Date,
+  language: AppLanguage = 'en',
+  localizeMed?: (med: Medication) => Medication
 ): string {
+  const t = TRANSLATIONS[language] ?? TRANSLATIONS.en;
+  const formatTime = (time: string) => formatTimeForLanguage(time, language);
+  const formatTs = (iso?: string) => formatTimestampForLanguage(iso, language);
+
   const todayKey = toDateKey(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  const headers = [
-    'Date',
-    'Scheduled Time',
-    'Medication',
-    'Dosage',
-    'Amount',
-    'Purpose',
-    'Status',
-    'Taken At',
-    'Notes',
-  ];
-
-  const rows: string[][] = [headers];
+  const rows: string[][] = [t.report.csvHeaders];
 
   // Iterate most recent date first so healthcare providers see latest adherence at the top
   for (let offset = 0; offset < days; offset++) {
@@ -385,44 +445,47 @@ export function generateAdherenceCsv(
     const doses = buildScheduledDosesForDate(dateKey, medications, logs, now);
 
     for (const dose of doses) {
+      const med = localizeMed ? localizeMed(dose.medication) : dose.medication;
       const schedMins = minutesFromTime(dose.scheduledTime);
       let statusLabel: string;
       let takenAtLabel = '';
       let notes = '';
 
       if (dose.status === 'taken') {
-        takenAtLabel = formatTimestamp12h(dose.log?.takenAt);
+        takenAtLabel = formatTs(dose.log?.takenAt);
         if (dose.log?.takenAt) {
           const takenDate = new Date(dose.log.takenAt);
           const takenMins = takenDate.getHours() * 60 + takenDate.getMinutes();
           statusLabel =
             Math.abs(takenMins - schedMins) <= 45
-              ? 'Taken (On Time)'
-              : 'Taken (Late)';
+              ? t.report.csvTakenOnTime
+              : t.report.csvTakenLate;
         } else {
-          statusLabel = 'Taken';
+          statusLabel = t.report.csvTaken;
         }
       } else if (dose.status === 'skipped') {
-        statusLabel = 'Skipped';
-        notes = dose.log?.skipReason || 'Skipped';
+        statusLabel = t.report.csvSkipped;
+        notes = dose.log?.skipReason
+          ? t.skipReasons[dose.log.skipReason] || dose.log.skipReason
+          : t.report.csvSkipped;
       } else if (dose.status === 'snoozed') {
-        statusLabel = 'Snoozed';
+        statusLabel = t.report.csvSnoozed;
         notes = dose.log?.snoozedUntil
-          ? `Snoozed until ${formatTimestamp12h(dose.log.snoozedUntil)}`
+          ? t.report.csvSnoozedUntil(formatTs(dose.log.snoozedUntil))
           : '';
       } else if (isToday && schedMins > nowMinutes) {
-        statusLabel = 'Upcoming';
+        statusLabel = t.report.csvUpcoming;
       } else {
-        statusLabel = 'Missed';
+        statusLabel = t.report.csvMissed;
       }
 
       rows.push([
         dateKey,
-        formatTime12h(dose.scheduledTime),
-        dose.medication.name,
-        dose.medication.dosage,
-        dose.medication.quantityLabel,
-        dose.medication.purpose,
+        formatTime(dose.scheduledTime),
+        med.name,
+        med.dosage,
+        med.quantityLabel,
+        med.purpose,
         statusLabel,
         takenAtLabel,
         notes,

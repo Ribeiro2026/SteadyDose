@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Bell, Check, Clock, Volume2, X } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 import { ScheduledDose, SkipReason } from '../types/medication';
-import { formatTime12h } from '../utils/schedule';
-import { PILL_COLOR_STYLES, PillVisual } from './PillVisual';
+import { PillVisual } from './PillVisual';
 
 const SKIP_REASONS: SkipReason[] = [
   'Forgot',
@@ -32,8 +32,11 @@ export function ReminderOverlay({
   onDismiss,
   onReplayChime,
 }: ReminderOverlayProps) {
+  const { t, formatTime, getDisplayMed } = useLanguage();
   const [choosingSkipReason, setChoosingSkipReason] = useState(false);
-  const colorLabel = PILL_COLOR_STYLES[dose.medication.color].label;
+  const dispMed = getDisplayMed(dose.medication);
+  const colorLabel = t.pills.colors[dispMed.color].label;
+  const shapeLabel = t.pills.shapes[dispMed.shape];
 
   return (
     <div
@@ -48,24 +51,24 @@ export function ReminderOverlay({
           <div className="flex items-center gap-2.5 text-[#0E6B5E]">
             <Bell className="w-5 h-5 shrink-0" aria-hidden="true" />
             <span className="font-display font-semibold text-base text-[#111C2D]">
-              {isPreview ? 'Sample Medication Reminder' : 'Time for Your Medicine'}
+              {isPreview ? t.reminder.sampleTitle : t.reminder.dueTitle}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={onReplayChime}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#334155] hover:bg-[#E2E8F0]/70 transition-colors"
-              aria-label="Play reminder chime again"
-              title="Play chime"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#334155] hover:bg-[#E2E8F0]/70 transition-colors cursor-pointer"
+              aria-label={t.reminder.replayChimeAria}
+              title={t.reminder.replayChimeTitle}
             >
               <Volume2 className="w-5 h-5" />
             </button>
             <button
               type="button"
               onClick={onDismiss}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#334155] hover:bg-[#E2E8F0]/70 transition-colors"
-              aria-label="Close reminder"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#334155] hover:bg-[#E2E8F0]/70 transition-colors cursor-pointer"
+              aria-label={t.reminder.closeAria}
             >
               <X className="w-5 h-5" />
             </button>
@@ -76,36 +79,36 @@ export function ReminderOverlay({
         <div className="p-6 overflow-y-auto space-y-6">
           <div className="flex items-start gap-4">
             <PillVisual
-              shape={dose.medication.shape}
-              color={dose.medication.color}
+              shape={dispMed.shape}
+              color={dispMed.color}
               size="lg"
             />
             <div className="min-w-0 flex-1">
               <p className="font-mono text-sm font-semibold text-[#0E6B5E] tabular-nums">
-                Scheduled for {formatTime12h(dose.scheduledTime)}
+                {t.reminder.scheduledFor(formatTime(dose.scheduledTime))}
               </p>
               <h2
                 id="reminder-modal-title"
                 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] mt-1 leading-tight"
               >
-                {dose.medication.name} {dose.medication.dosage}
+                {dispMed.name} {dispMed.dosage}
               </h2>
               <p className="text-base text-[#475569] mt-1.5">
-                {dose.medication.quantityLabel} · {colorLabel} {dose.medication.shape}
+                {dispMed.quantityLabel} · {colorLabel} {shapeLabel}
               </p>
             </div>
           </div>
 
           <div className="rounded-2xl bg-[#F4F7FA] border border-[#DCE3EC] p-4 space-y-1.5">
             <p className="text-sm font-semibold text-[#334155]">
-              How to take it
+              {t.reminder.howToTakeIt}
             </p>
             <p className="text-base text-[#111C2D] leading-relaxed">
-              {dose.medication.instructions || 'Take with a full glass of water.'}
+              {dispMed.instructions || t.reminder.defaultInstruction}
             </p>
-            {dose.medication.purpose && (
+            {dispMed.purpose && (
               <p className="text-sm text-[#475569] pt-1">
-                For: {dose.medication.purpose}
+                {t.reminder.forPurpose(dispMed.purpose)}
               </p>
             )}
           </div>
@@ -118,7 +121,7 @@ export function ReminderOverlay({
                 className="w-full min-h-[60px] px-6 py-4 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] active:scale-[0.99] text-white font-display font-semibold text-lg flex items-center justify-center gap-2.5 transition-all cursor-pointer"
               >
                 <Check className="w-6 h-6 shrink-0" strokeWidth={2.5} />
-                <span>I Took It Now</span>
+                <span>{t.reminder.iTookItNow}</span>
               </button>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -128,7 +131,7 @@ export function ReminderOverlay({
                   className="min-h-[54px] px-5 py-3.5 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <Clock className="w-5 h-5 shrink-0 text-[#334155]" />
-                  <span>Remind in {snoozeMinutes} min</span>
+                  <span>{t.reminder.remindIn(snoozeMinutes)}</span>
                 </button>
 
                 <button
@@ -136,14 +139,14 @@ export function ReminderOverlay({
                   onClick={() => setChoosingSkipReason(true)}
                   className="min-h-[54px] px-5 py-3.5 rounded-2xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#475569] font-semibold text-base flex items-center justify-center transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <span>Skip This Dose</span>
+                  <span>{t.reminder.skipThisDose}</span>
                 </button>
               </div>
             </div>
           ) : (
             <div className="space-y-3 pt-1">
               <p className="text-base font-semibold text-[#111C2D]">
-                Why are you skipping this dose?
+                {t.reminder.whySkipping}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {SKIP_REASONS.map((reason) => (
@@ -151,9 +154,9 @@ export function ReminderOverlay({
                     key={reason}
                     type="button"
                     onClick={() => onSkip(dose, reason)}
-                    className="min-h-[50px] px-4 py-3 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#111C2D] font-medium text-base text-left transition-colors cursor-pointer"
+                    className="min-h-[50px] px-4 py-3 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#111C2D] font-medium text-base text-start transition-colors cursor-pointer"
                   >
-                    {reason}
+                    {t.skipReasons[reason]}
                   </button>
                 ))}
               </div>
@@ -162,7 +165,7 @@ export function ReminderOverlay({
                 onClick={() => setChoosingSkipReason(false)}
                 className="w-full min-h-[48px] px-4 py-2.5 rounded-xl text-[#475569] hover:text-[#111C2D] font-medium text-base cursor-pointer"
               >
-                Back to reminder
+                {t.reminder.backToReminder}
               </button>
             </div>
           )}

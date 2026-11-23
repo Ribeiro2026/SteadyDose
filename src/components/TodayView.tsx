@@ -7,6 +7,8 @@ import {
   RotateCcw,
   SkipForward,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
+import { TranslationDict } from '../i18n/translations';
 import {
   DoseLogEntry,
   Medication,
@@ -14,17 +16,14 @@ import {
   TimePeriod,
 } from '../types/medication';
 import {
-  PERIOD_LABELS,
   PERIOD_ORDER,
   buildScheduledDosesForDate,
-  formatHumanDate,
-  formatTime12h,
-  formatTimestamp12h,
   parseDateKey,
   shiftDateKey,
   toDateKey,
 } from '../utils/schedule';
-import { PILL_COLOR_STYLES, PillVisual } from './PillVisual';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { PillVisual } from './PillVisual';
 import { PWAInstallButton } from './PWAInstallButton';
 import { ProgressRing } from './ProgressRing';
 
@@ -44,34 +43,42 @@ interface TodayViewProps {
   onTriggerTestReminder: () => void;
 }
 
-function getDoseStatusText(dose: ScheduledDose, isToday: boolean): {
+function getDoseStatusText(
+  dose: ScheduledDose,
+  isToday: boolean,
+  t: TranslationDict,
+  formatTimestamp: (iso?: string) => string
+): {
   label: string;
   toneClass: string;
 } {
   if (dose.status === 'taken') {
-    const timeStr = formatTimestamp12h(dose.log?.takenAt);
+    const timeStr = formatTimestamp(dose.log?.takenAt);
     return {
-      label: timeStr ? `Taken at ${timeStr}` : 'Taken',
+      label: timeStr ? t.today.statusTakenAt(timeStr) : t.today.statusTaken,
       toneClass: 'text-[#0E6B5E] font-semibold',
     };
   }
   if (dose.status === 'skipped') {
+    const localizedReason = dose.log?.skipReason
+      ? t.skipReasons[dose.log.skipReason] || dose.log.skipReason
+      : '';
     return {
-      label: dose.log?.skipReason
-        ? `Skipped · ${dose.log.skipReason}`
-        : 'Skipped',
+      label: localizedReason
+        ? t.today.statusSkippedWithReason(localizedReason)
+        : t.today.statusSkipped,
       toneClass: 'text-[#64748B] font-medium',
     };
   }
   if (dose.status === 'snoozed' && dose.log?.snoozedUntil) {
     return {
-      label: `Snoozed until ${formatTimestamp12h(dose.log.snoozedUntil)}`,
+      label: t.today.statusSnoozedUntil(formatTimestamp(dose.log.snoozedUntil)),
       toneClass: 'text-[#B45309] font-semibold',
     };
   }
   if (dose.isDueNow) {
     return {
-      label: 'Due now',
+      label: t.today.statusDueNow,
       toneClass: 'text-[#B45309] font-semibold',
     };
   }
@@ -79,22 +86,21 @@ function getDoseStatusText(dose: ScheduledDose, isToday: boolean): {
     if (isToday && dose.minutesDelta < 720) {
       const hrs = Math.floor(dose.minutesDelta / 60);
       const mins = dose.minutesDelta % 60;
-      const lateText =
-        hrs > 0
-          ? `${hrs} hr ${mins > 0 ? `${mins} min` : ''}`.trim()
-          : `${mins} min`;
       return {
-        label: `Late by ${lateText}`,
+        label:
+          hrs > 0
+            ? t.today.statusLateHours(hrs, mins)
+            : t.today.statusLateMins(mins),
         toneClass: 'text-[#B45309] font-semibold',
       };
     }
     return {
-      label: 'Missed',
+      label: t.today.statusMissed,
       toneClass: 'text-[#B91C1C] font-semibold',
     };
   }
   return {
-    label: 'Upcoming',
+    label: t.today.statusUpcoming,
     toneClass: 'text-[#475569] font-medium',
   };
 }
@@ -114,6 +120,8 @@ export function TodayView({
   onOpenAddMedication,
   onTriggerTestReminder,
 }: TodayViewProps) {
+  const { t, locale, formatTime, formatTimestamp, formatDate, getDisplayMed } =
+    useLanguage();
   const todayKey = toDateKey(now);
   const isToday = selectedDateKey === todayKey;
 
@@ -138,14 +146,14 @@ export function TodayView({
       const taken = dayDoses.filter((item) => item.status === 'taken').length;
       items.push({
         dateKey: key,
-        weekday: d.toLocaleDateString([], { weekday: 'short' }),
+        weekday: d.toLocaleDateString(locale, { weekday: 'short' }),
         dayNum: d.getDate(),
         taken,
         total: dayDoses.length,
       });
     }
     return items;
-  }, [now, medications, logs]);
+  }, [now, medications, logs, locale]);
 
   const takenCount = doses.filter((d) => d.status === 'taken').length;
   const totalCount = doses.length;
@@ -162,6 +170,10 @@ export function TodayView({
     const dueOrOverdue = actionable.find((d) => d.isDueNow || d.isOverdue);
     return dueOrOverdue ?? actionable[0];
   }, [doses, isToday]);
+
+  const spotlightMed = spotlightDose
+    ? getDisplayMed(spotlightDose.medication)
+    : null;
 
   const groupedByPeriod = useMemo(() => {
     const map: Record<TimePeriod, ScheduledDose[]> = {
@@ -186,33 +198,37 @@ export function TodayView({
 
   return (
     <div className="space-y-6">
-      {/* Greeting & Date Heading + 7-Day Interactive Strip */}
+      {/* Greeting & Date Heading + Language Switcher + 7-Day Interactive Strip */}
       <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-[#475569]">
-              {isToday ? 'Today’s Schedule' : 'Daily Schedule'}
+              {isToday ? t.today.todaySchedule : t.today.dailySchedule}
             </p>
             <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] tracking-tight mt-0.5">
-              {formatHumanDate(selectedDateKey, todayKey)}
+              {formatDate(selectedDateKey, todayKey)}
             </h1>
           </div>
-          {!isToday && (
-            <button
-              type="button"
-              onClick={() => onSelectDateKey(todayKey)}
-              className="self-start sm:self-auto min-h-[44px] px-4 rounded-xl bg-white border border-[#CBD5E1] hover:bg-[#F8FAFC] text-sm font-semibold text-[#0E6B5E] transition-colors cursor-pointer whitespace-nowrap"
-            >
-              Return to Today
-            </button>
-          )}
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {!isToday && (
+              <button
+                type="button"
+                onClick={() => onSelectDateKey(todayKey)}
+                className="min-h-[44px] px-4 rounded-xl bg-white border border-[#CBD5E1] hover:bg-[#F8FAFC] text-sm font-semibold text-[#0E6B5E] transition-colors cursor-pointer whitespace-nowrap"
+              >
+                {t.today.returnToToday}
+              </button>
+            )}
+            <LanguageSwitcher variant="segmented" />
+          </div>
         </div>
 
         {/* 7-day horizontal date scroller */}
         <div
           className="grid grid-cols-7 gap-1.5 sm:gap-2"
           role="tablist"
-          aria-label="Choose a day"
+          aria-label={t.today.chooseDayAria}
         >
           {dateStrip.map((day) => {
             const active = day.dateKey === selectedDateKey;
@@ -236,12 +252,13 @@ export function TodayView({
                     active ? 'text-white/80' : 'text-[#475569]'
                   }`}
                 >
-                  {isDayToday ? 'Today' : day.weekday}
+                  {isDayToday ? t.today.todayShort : day.weekday}
                 </span>
                 <span className="font-display text-lg font-bold leading-tight mt-0.5 tabular-nums">
                   {day.dayNum}
                 </span>
                 <span
+                  dir="ltr"
                   className={`text-[11px] font-mono mt-0.5 tabular-nums ${
                     active
                       ? 'text-white/85'
@@ -265,10 +282,10 @@ export function TodayView({
           {/* Dominant Focal Anchor Card (only on Today) */}
           {isToday && totalCount > 0 && (
             <section
-              aria-label="Next medication due"
+              aria-label={t.today.nextMedDueAria}
               className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 sm:p-6"
             >
-              {spotlightDose ? (
+              {spotlightDose && spotlightMed ? (
                 <div className="space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span
@@ -279,36 +296,39 @@ export function TodayView({
                       }`}
                     >
                       {spotlightDose.isOverdue
-                        ? 'Action Needed · Overdue Dose'
+                        ? t.today.actionNeededOverdue
                         : spotlightDose.isDueNow
-                          ? 'Ready to Take Now'
-                          : 'Next Scheduled Medicine'}
+                          ? t.today.readyToTakeNow
+                          : t.today.nextScheduledMed}
                     </span>
-                    <span className="font-mono font-semibold text-[#111C2D] tabular-nums">
-                      {formatTime12h(spotlightDose.scheduledTime)}
+                    <span
+                      dir="ltr"
+                      className="font-mono font-semibold text-[#111C2D] tabular-nums"
+                    >
+                      {formatTime(spotlightDose.scheduledTime)}
                     </span>
                   </div>
 
                   <div className="flex items-start gap-4">
                     <PillVisual
-                      shape={spotlightDose.medication.shape}
-                      color={spotlightDose.medication.color}
+                      shape={spotlightMed.shape}
+                      color={spotlightMed.color}
                       size="lg"
                     />
                     <div className="min-w-0 flex-1">
                       <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#111C2D] leading-tight">
-                        {spotlightDose.medication.name}{' '}
+                        {spotlightMed.name}{' '}
                         <span className="font-semibold text-[#334155]">
-                          {spotlightDose.medication.dosage}
+                          {spotlightMed.dosage}
                         </span>
                       </h2>
                       <p className="text-base text-[#475569] mt-1">
-                        {spotlightDose.medication.quantityLabel} ·{' '}
-                        {PILL_COLOR_STYLES[spotlightDose.medication.color].label}{' '}
-                        {spotlightDose.medication.shape}
+                        {spotlightMed.quantityLabel} ·{' '}
+                        {t.pills.colors[spotlightMed.color].label}{' '}
+                        {t.pills.shapes[spotlightMed.shape]}
                       </p>
                       <p className="text-base text-[#111C2D] mt-2 leading-relaxed">
-                        {spotlightDose.medication.instructions}
+                        {spotlightMed.instructions}
                       </p>
                     </div>
                   </div>
@@ -320,7 +340,7 @@ export function TodayView({
                       className="flex-1 min-h-[56px] px-6 py-3.5 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] active:scale-[0.99] text-white font-display font-semibold text-lg flex items-center justify-center gap-2.5 transition-all cursor-pointer whitespace-nowrap"
                     >
                       <Check className="w-6 h-6 shrink-0" strokeWidth={2.5} />
-                      <span>Mark as Taken</span>
+                      <span>{t.today.markAsTaken}</span>
                     </button>
 
                     <button
@@ -329,7 +349,7 @@ export function TodayView({
                       className="min-h-[56px] px-5 py-3.5 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-base flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <Clock className="w-5 h-5 shrink-0 text-[#334155]" />
-                      <span>Remind in {snoozeMinutes} min</span>
+                      <span>{t.today.remindIn(snoozeMinutes)}</span>
                     </button>
                   </div>
                 </div>
@@ -337,14 +357,13 @@ export function TodayView({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-[#0E6B5E]">
-                      All Done for Today
+                      {t.today.allDoneTitle}
                     </p>
                     <h2 className="font-display text-2xl font-bold text-[#111C2D]">
-                      Every scheduled dose is accounted for
+                      {t.today.allDoneHeadline}
                     </h2>
                     <p className="text-base text-[#475569]">
-                      You took {takenCount} of {totalCount} scheduled doses today.
-                      Great job staying consistent.
+                      {t.today.allDoneBody(takenCount, totalCount)}
                     </p>
                   </div>
                   <div className="shrink-0 w-14 h-14 rounded-2xl bg-[#ECFDF5] border border-[#A7F3D0] flex items-center justify-center text-[#0E6B5E]">
@@ -359,18 +378,17 @@ export function TodayView({
           {totalCount === 0 && (
             <section className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-8 text-center space-y-4">
               <h2 className="font-display text-xl font-bold text-[#111C2D]">
-                No medications scheduled for this day
+                {t.today.emptyTitle}
               </h2>
               <p className="text-base text-[#475569] max-w-md mx-auto">
-                Add your daily prescriptions or vitamins to receive clear, timely
-                reminders and track your progress.
+                {t.today.emptyBody}
               </p>
               <button
                 type="button"
                 onClick={onOpenAddMedication}
                 className="min-h-[52px] px-6 rounded-2xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white font-display font-semibold text-base transition-colors cursor-pointer"
               >
-                Add Your First Medicine
+                {t.today.addFirstMed}
               </button>
             </section>
           )}
@@ -379,7 +397,7 @@ export function TodayView({
           {PERIOD_ORDER.map((period) => {
             const periodDoses = groupedByPeriod[period];
             if (periodDoses.length === 0) return null;
-            const periodMeta = PERIOD_LABELS[period];
+            const periodMeta = t.periods[period];
             const periodTaken = periodDoses.filter(
               (d) => d.status === 'taken'
             ).length;
@@ -396,13 +414,19 @@ export function TodayView({
                     </span>
                   </div>
                   <span className="font-mono text-sm font-medium text-[#475569] tabular-nums">
-                    {periodTaken}/{periodDoses.length} taken
+                    {t.today.takenOfTotal(periodTaken, periodDoses.length)}
                   </span>
                 </div>
 
                 <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] divide-y divide-[#E5ECF3] overflow-hidden">
                   {periodDoses.map((dose) => {
-                    const statusInfo = getDoseStatusText(dose, isToday);
+                    const dispMed = getDisplayMed(dose.medication);
+                    const statusInfo = getDoseStatusText(
+                      dose,
+                      isToday,
+                      t,
+                      formatTimestamp
+                    );
                     const isTaken = dose.status === 'taken';
                     const isSkipped = dose.status === 'skipped';
 
@@ -415,8 +439,8 @@ export function TodayView({
                       >
                         <div className="flex items-start gap-3.5 min-w-0 flex-1">
                           <PillVisual
-                            shape={dose.medication.shape}
-                            color={dose.medication.color}
+                            shape={dispMed.shape}
+                            color={dispMed.color}
                             size="md"
                             className={isTaken ? 'opacity-70' : ''}
                           />
@@ -430,18 +454,21 @@ export function TodayView({
                                     : 'text-[#111C2D]'
                                 }`}
                               >
-                                {dose.medication.name} {dose.medication.dosage}
+                                {dispMed.name} {dispMed.dosage}
                               </span>
                             </div>
 
                             <p className="text-sm text-[#475569] mt-0.5 leading-relaxed">
-                              <span className="font-mono font-semibold text-[#111C2D] tabular-nums">
-                                {formatTime12h(dose.scheduledTime)}
+                              <span
+                                dir="ltr"
+                                className="font-mono font-semibold text-[#111C2D] tabular-nums inline-block"
+                              >
+                                {formatTime(dose.scheduledTime)}
                               </span>
                               <span aria-hidden="true"> · </span>
-                              <span>{dose.medication.quantityLabel}</span>
+                              <span>{dispMed.quantityLabel}</span>
                               <span aria-hidden="true"> · </span>
-                              <span>{dose.medication.instructions}</span>
+                              <span>{dispMed.instructions}</span>
                             </p>
 
                             <p className={`text-sm mt-1.5 ${statusInfo.toneClass}`}>
@@ -459,7 +486,7 @@ export function TodayView({
                               className="w-full sm:w-auto min-h-[48px] px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#334155] font-semibold text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                             >
                               <RotateCcw className="w-4 h-4 shrink-0" />
-                              <span>Undo</span>
+                              <span>{t.today.undo}</span>
                             </button>
                           ) : (
                             <>
@@ -469,17 +496,17 @@ export function TodayView({
                                 className="flex-1 sm:flex-initial min-h-[48px] px-5 rounded-xl bg-[#0E6B5E] hover:bg-[#0B574C] text-white font-semibold text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                               >
                                 <Check className="w-4 h-4 shrink-0" strokeWidth={2.5} />
-                                <span>Take</span>
+                                <span>{t.today.take}</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => onOpenReminderForDose(dose)}
                                 className="min-h-[48px] min-w-[48px] px-3 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#334155] font-medium text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-                                aria-label={`More options for ${dose.medication.name}`}
-                                title="Snooze or Skip"
+                                aria-label={t.today.moreOptionsAria(dispMed.name)}
+                                title={t.today.snoozeOrSkipTitle}
                               >
                                 <SkipForward className="w-4 h-4 shrink-0" />
-                                <span className="sm:hidden">Options</span>
+                                <span className="sm:hidden">{t.today.options}</span>
                               </button>
                             </>
                           )}
@@ -502,20 +529,18 @@ export function TodayView({
               size={96}
               strokeWidth={9}
               primaryLabel={`${takenCount}/${totalCount}`}
-              secondaryLabel="taken"
+              secondaryLabel={t.today.takenWord}
             />
             <div className="min-w-0 space-y-1">
               <h3 className="font-display text-lg font-bold text-[#111C2D]">
-                {isToday ? 'Today’s Progress' : 'Day Summary'}
+                {isToday ? t.today.todaysProgress : t.today.daySummary}
               </h3>
               <p className="text-sm text-[#475569] leading-relaxed">
                 {totalCount === 0
-                  ? 'No doses scheduled.'
+                  ? t.today.noDosesScheduled
                   : takenCount === totalCount
-                    ? 'Every dose has been taken on schedule.'
-                    : `${totalCount - takenCount} dose${
-                        totalCount - takenCount === 1 ? '' : 's'
-                      } remaining for this day.`}
+                    ? t.today.everyDoseTaken
+                    : t.today.remainingDoses(totalCount - takenCount)}
               </p>
             </div>
           </div>
@@ -527,11 +552,10 @@ export function TodayView({
           <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 space-y-3.5">
             <div className="space-y-1">
               <h3 className="font-display text-lg font-bold text-[#111C2D]">
-                Timely Reminder Alerts
+                {t.today.timelyAlertsTitle}
               </h3>
               <p className="text-sm text-[#475569] leading-relaxed">
-                Reminders chime automatically at your scheduled times with clear
-                pill details and one-tap confirmation.
+                {t.today.timelyAlertsBody}
               </p>
             </div>
             <button
@@ -540,7 +564,7 @@ export function TodayView({
               className="w-full min-h-[48px] px-4 rounded-xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#111C2D] font-semibold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Bell className="w-4 h-4 shrink-0 text-[#0E6B5E]" />
-              <span>Preview Reminder Alert</span>
+              <span>{t.today.previewReminderAlert}</span>
             </button>
           </div>
 
@@ -549,36 +573,39 @@ export function TodayView({
             <div className="surface-card rounded-3xl bg-white border border-[#DCE3EC] p-5 space-y-3.5">
               <div className="space-y-1">
                 <h3 className="font-display text-lg font-bold text-[#111C2D]">
-                  Refill Soon
+                  {t.today.refillSoonTitle}
                 </h3>
                 <p className="text-sm text-[#475569]">
-                  These bottles are getting low.
+                  {t.today.refillSoonBody}
                 </p>
               </div>
               <div className="divide-y divide-[#E5ECF3]">
-                {lowSupplyMeds.map((med) => (
-                  <div
-                    key={med.id}
-                    className="py-3 first:pt-1 last:pb-0 flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-base text-[#111C2D] truncate">
-                        {med.name} {med.dosage}
-                      </p>
-                      <p className="text-sm font-medium text-[#B45309] tabular-nums">
-                        {med.remainingPills} pills left
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onRefillMedication(med.id, 30)}
-                      className="min-h-[44px] px-3.5 rounded-xl bg-[#0E6B5E]/10 hover:bg-[#0E6B5E]/15 text-[#0E6B5E] font-semibold text-sm flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                {lowSupplyMeds.map((med) => {
+                  const dispMed = getDisplayMed(med);
+                  return (
+                    <div
+                      key={med.id}
+                      className="py-3 first:pt-1 last:pb-0 flex items-center justify-between gap-3"
                     >
-                      <PackagePlus className="w-4 h-4 shrink-0" />
-                      <span>+30 Refill</span>
-                    </button>
-                  </div>
-                ))}
+                      <div className="min-w-0">
+                        <p className="font-semibold text-base text-[#111C2D] truncate">
+                          {dispMed.name} {dispMed.dosage}
+                        </p>
+                        <p className="text-sm font-medium text-[#B45309] tabular-nums">
+                          {t.today.pillsLeft(med.remainingPills)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onRefillMedication(med.id, 30)}
+                        className="min-h-[44px] px-3.5 rounded-xl bg-[#0E6B5E]/10 hover:bg-[#0E6B5E]/15 text-[#0E6B5E] font-semibold text-sm flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                      >
+                        <PackagePlus className="w-4 h-4 shrink-0" />
+                        <span>{t.today.refillBtn}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

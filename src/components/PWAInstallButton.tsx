@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface PWAInstallButtonProps {
   variant?: 'card' | 'settings';
@@ -17,6 +18,7 @@ interface PWAInstallButtonProps {
 export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
   const { isInstallable, isInstalled, isIOS, isAndroid, install } =
     usePWAInstall();
+  const { t } = useLanguage();
   const [showGuide, setShowGuide] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
@@ -33,12 +35,9 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
         </div>
         <div>
           <h2 className="font-display text-base font-bold text-[#111C2D]">
-            Installed on This Device
+            {t.pwa.installedTitle}
           </h2>
-          <p className="text-sm text-[#475569]">
-            SteadyDose is already saved to your home screen for quick, offline
-            access.
-          </p>
+          <p className="text-sm text-[#475569]">{t.pwa.installedDesc}</p>
         </div>
       </section>
     );
@@ -80,11 +79,10 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
           </div>
           <div className="min-w-0 space-y-1">
             <h3 className="font-display text-lg font-bold text-[#111C2D] leading-snug">
-              Install on Smartphone
+              {t.pwa.installTitle}
             </h3>
             <p className="text-sm text-[#475569] leading-relaxed">
-              Add SteadyDose to your phone’s home screen for one-tap access and
-              offline medication tracking.
+              {t.pwa.installDesc}
             </p>
           </div>
         </div>
@@ -97,12 +95,12 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
           {justInstalled ? (
             <>
               <Check className="w-5 h-5 shrink-0" />
-              <span>App Installed</span>
+              <span>{t.pwa.appInstalled}</span>
             </>
           ) : (
             <>
               <Download className="w-5 h-5 shrink-0" />
-              <span>Download App</span>
+              <span>{t.pwa.downloadApp}</span>
             </>
           )}
         </button>
@@ -125,13 +123,13 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                 id="pwa-install-guide-title"
                 className="font-display text-xl font-bold text-[#111C2D]"
               >
-                Install SteadyDose on Your Phone
+                {t.pwa.guideTitle}
               </h2>
               <button
                 type="button"
                 onClick={() => setShowGuide(false)}
                 className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#475569] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
-                aria-label="Close installation instructions"
+                aria-label={t.pwa.closeGuideAria}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -139,15 +137,14 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
 
             <div className="p-6 overflow-y-auto space-y-5">
               <p className="text-base text-[#475569] leading-relaxed">
-                SteadyDose installs directly from your phone’s web browser—no
-                app store password needed.
+                {t.pwa.guideIntro}
               </p>
 
               {/* iPhone / iPad Instructions */}
               {!isAndroid && (
                 <div className="rounded-2xl bg-[#F8FAFC] border border-[#DCE3EC] p-4 space-y-2.5">
                   <p className="font-display font-bold text-base text-[#111C2D]">
-                    On iPhone or iPad (Safari)
+                    {t.pwa.iosHeading}
                   </p>
                   <ol className="space-y-2 text-sm text-[#334155] leading-relaxed">
                     <li className="flex items-start gap-2.5">
@@ -155,11 +152,12 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                         1.
                       </span>
                       <span>
-                        Tap the{' '}
+                        {t.pwa.iosStep1Prefix}{' '}
                         <span className="inline-flex items-center gap-1 font-semibold text-[#111C2D]">
-                          Share <Share className="w-3.5 h-3.5 inline" />
+                          {t.pwa.iosStep1Share}{' '}
+                          <Share className="w-3.5 h-3.5 inline" />
                         </span>{' '}
-                        button at the bottom of Safari.
+                        {t.pwa.iosStep1Suffix}
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
@@ -167,9 +165,9 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                         2.
                       </span>
                       <span>
-                        Scroll down and tap{' '}
+                        {t.pwa.iosStep2Prefix}{' '}
                         <strong className="text-[#111C2D]">
-                          Add to Home Screen
+                          {t.pwa.iosStep2Action}
                         </strong>
                         .
                       </span>
@@ -179,8 +177,11 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                         3.
                       </span>
                       <span>
-                        Tap <strong className="text-[#111C2D]">Add</strong> in
-                        the top corner to place SteadyDose on your home screen.
+                        {t.pwa.iosStep3Prefix}{' '}
+                        <strong className="text-[#111C2D]">
+                          {t.pwa.iosStep3Action}
+                        </strong>{' '}
+                        {t.pwa.iosStep3Suffix}
                       </span>
                     </li>
                   </ol>
@@ -191,7 +192,7 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
               {!isIOS && (
                 <div className="rounded-2xl bg-[#F8FAFC] border border-[#DCE3EC] p-4 space-y-2.5">
                   <p className="font-display font-bold text-base text-[#111C2D]">
-                    On Android (Chrome)
+                    {t.pwa.androidHeading}
                   </p>
                   <ol className="space-y-2 text-sm text-[#334155] leading-relaxed">
                     <li className="flex items-start gap-2.5">
@@ -199,11 +200,12 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                         1.
                       </span>
                       <span>
-                        Tap the{' '}
+                        {t.pwa.androidStep1Prefix}{' '}
                         <span className="inline-flex items-center gap-0.5 font-semibold text-[#111C2D]">
-                          Menu <MoreVertical className="w-3.5 h-3.5 inline" />
+                          {t.pwa.androidStep1Menu}{' '}
+                          <MoreVertical className="w-3.5 h-3.5 inline" />
                         </span>{' '}
-                        button in the top-right corner of Chrome.
+                        {t.pwa.androidStep1Suffix}
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
@@ -211,11 +213,13 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                         2.
                       </span>
                       <span>
-                        Tap{' '}
-                        <strong className="text-[#111C2D]">Install app</strong>{' '}
-                        or{' '}
+                        {t.pwa.androidStep2Prefix}{' '}
                         <strong className="text-[#111C2D]">
-                          Add to Home screen
+                          {t.pwa.androidStep2Action1}
+                        </strong>{' '}
+                        {t.pwa.androidStep2Or}{' '}
+                        <strong className="text-[#111C2D]">
+                          {t.pwa.androidStep2Action2}
                         </strong>
                         .
                       </span>
@@ -225,8 +229,11 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                         3.
                       </span>
                       <span>
-                        Confirm by tapping{' '}
-                        <strong className="text-[#111C2D]">Install</strong>.
+                        {t.pwa.androidStep3Prefix}{' '}
+                        <strong className="text-[#111C2D]">
+                          {t.pwa.androidStep3Action}
+                        </strong>
+                        .
                       </span>
                     </li>
                   </ol>
@@ -242,12 +249,12 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                   {copiedLink ? (
                     <>
                       <Check className="w-4 h-4 text-[#0E6B5E] shrink-0" />
-                      <span>App Link Copied</span>
+                      <span>{t.pwa.appLinkCopied}</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-4 h-4 text-[#334155] shrink-0" />
-                      <span>Copy Link for Phone</span>
+                      <span>{t.pwa.copyLinkForPhone}</span>
                     </>
                   )}
                 </button>
@@ -257,7 +264,7 @@ export function PWAInstallButton({ variant = 'card' }: PWAInstallButtonProps) {
                   onClick={() => setShowGuide(false)}
                   className="min-h-[50px] px-6 rounded-2xl bg-[#111C2D] hover:bg-[#1E293B] text-white font-semibold text-base transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  Done
+                  {t.pwa.done}
                 </button>
               </div>
             </div>

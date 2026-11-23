@@ -22,6 +22,8 @@ export type ChimeStyle = 'bell' | 'warm' | 'clear';
 
 export type TextScale = 'standard' | 'large' | 'xlarge';
 
+export type AppLanguage = 'en' | 'he' | 'pt';
+
 export type NavTab = 'today' | 'adherence' | 'medications' | 'nearby' | 'alerts';
 
 export interface Medication {
@@ -73,6 +75,7 @@ export interface CaregiverContact {
 }
 
 export interface AppSettings {
+  language: AppLanguage;
   soundEnabled: boolean;
   chimeStyle: ChimeStyle;
   snoozeMinutes: 10 | 15 | 30;
